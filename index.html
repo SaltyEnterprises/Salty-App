@@ -1455,8 +1455,8 @@ function isMine(a){
     if(!a.branch||a.branch==='')return true; // no branch set — show to all CCs
     return SOUTH.indexOf(a.branch)>=0||(a.region==='SOUTH');
   }
-  if(cu.role==='officer')return cu.branch?a.branch===cu.branch:a.officerUser===cu.username;
-  if(cu.role==='assistant')return cu.branch?a.branch===cu.branch:true;
+  if(cu.role==='officer')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():a.officerUser===cu.username;
+  if(cu.role==='assistant')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():true;
   return false;
 }
 function findC(id){for(var i=0;i<clients.length;i++){if(clients[i].id===id)return clients[i];}return null;}
@@ -1521,7 +1521,7 @@ function updateBadges(){
     for(var i=0;i<applications.length;i++){
       var a=applications[i];
       if(a.status!=='approved')continue;
-      if(cu.branch&&a.branch!==cu.branch)continue;
+      if(cu.branch&&a.branch&&a.branch.toLowerCase().trim()!==cu.branch.toLowerCase().trim())continue;
       var inDisb=false;
       for(var j=0;j<disbursements.length;j++){
         var db=disbursements[j];
@@ -1618,7 +1618,7 @@ function renderMyApps(mc){
     for(var i=0;i<applications.length;i++){
       var a=applications[i];
       if(a.status!=='approved')continue;
-      if(cu.branch&&a.branch!==cu.branch)continue;
+      if(cu.branch&&a.branch&&a.branch.toLowerCase().trim()!==cu.branch.toLowerCase().trim())continue;
       var inDisb=false;
       for(var j=0;j<disbursements.length;j++){
         for(var k=0;k<(disbursements[j].clients||[]).length;k++){if(disbursements[j].clients[k].appId===a.id){inDisb=true;break;}}
@@ -1630,7 +1630,7 @@ function renderMyApps(mc){
     for(var i=0;i<applications.length;i++){
       var a=applications[i];
       if(a.status!=='approved'&&a.status!=='disbursed')continue;
-      if(cu.branch&&a.branch!==cu.branch)continue;
+      if(cu.branch&&a.branch&&a.branch.toLowerCase().trim()!==cu.branch.toLowerCase().trim())continue;
       disbursed.push(a);
     }
     if(approved.length){
@@ -1955,10 +1955,10 @@ function renderDisbursements(mc){
   }
   var pending=[],done=[];for(var i=0;i<myDisbs.length;i++){if(myDisbs[i].status==='pending')pending.push(myDisbs[i]);else done.push(myDisbs[i]);}var all=pending.concat(done);
   var readyApps=[];
-  if(cu&&cu.role==='assistant'){
+  if(cu&&(cu.role==='assistant'||cu.role==='officer')){
     for(var i=0;i<applications.length;i++){
       var a=applications[i];if(a.status!=='approved')continue;
-      if(cu.branch&&a.branch!==cu.branch)continue;
+      if(cu.branch&&a.branch&&a.branch.toLowerCase().trim()!==cu.branch.toLowerCase().trim())continue;
       var inDisb=false;
       for(var j=0;j<disbursements.length;j++){
         var db=disbursements[j];
@@ -1978,7 +1978,7 @@ function renderDisbursements(mc){
     }
     readyBanner+='</div></div>';
   }
-  var h=readyBanner+'<div class="cd"><div class="cdh"><span class="cdt">Disbursements ('+pending.length+' pending)</span>'+(canDo('assistant')?'<button class="btn btr bts" onclick="openDisbModal()">+ New List</button>':'')+'</div><div class="tw"><table><thead><tr><th>Date</th><th>Branch</th><th>Clients</th><th>Total</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>';
+  var h=readyBanner+'<div class="cd"><div class="cdh"><span class="cdt">Disbursements ('+pending.length+' pending)</span>'+(canDo('assistant','officer')?'<button class="btn btr bts" onclick="openDisbModal()">+ New List</button>':'')+'</div><div class="tw"><table><thead><tr><th>Date</th><th>Branch</th><th>Clients</th><th>Total</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!all.length){var waitingForCC=0;for(var i=0;i<applications.length;i++){if(applications[i].status==="submitted"&&isMine(applications[i]))waitingForCC++;}var emptyMsg=canDo("assistant")&&waitingForCC>0?"<div class=\"ei\">&#9203;</div><div class=\"et\">"+waitingForCC+" application"+(waitingForCC>1?"s":"")+" waiting for Credit Controller approval<br><small style=\"color:var(--mu)\">Check the Applications tab to monitor status</small></div>":"<div class=\"ei\">&#128184;</div><div class=\"et\">No disbursements yet</div>";h+="<tr><td colspan=\"7\"><div class=\"es\">"+emptyMsg+"</div></td></tr>";}
   for(var i=0;i<all.length;i++){var d=all[i],total=0;for(var j=0;j<d.clients.length;j++)total+=d.clients[j].amount||0;var sc=d.status==='pending'?'bgo':d.status==='approved'?'bgg':'bgr';h+='<tr><td style="font-weight:600">'+fmtD(d.date)+'</td><td>'+esc(d.branch||'Multiple')+'</td><td>'+d.clients.length+'</td><td style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(total)+'</td><td style="font-size:11px;color:var(--mu)">'+esc(d.submittedBy)+'</td><td><span class="bg '+sc+'">'+esc(d.status)+'</span></td><td style="display:flex;gap:3px">'+'<button class="ab" onclick="viewDisb(\''+d.id+'\')">&nbsp;View</button>'+(canDo('credit_north','credit_south','admin')&&d.status==='pending'?'<button class="btn btk bts" onclick="viewDisb(\''+d.id+'\')" style="font-size:10px">&#10003; Review</button>':'')+(canDo('admin')||((canDo('credit_north','credit_south'))&&d.status!=='approved')?'<button class="ab" style="color:var(--r)" onclick="confirmDelDisb(\''+d.id+'\')">&#128465;</button>':'')+'</td></tr>';}
   h+='</tbody></table></div></div>';mc.innerHTML=h;
@@ -1988,7 +1988,7 @@ function openDisbModal(){
     var a=applications[i];
     if(a.status!=='approved')continue;
     // Branch filter for assistant
-    if(cu&&cu.branch&&a.branch!==cu.branch)continue;
+    if(cu&&cu.branch&&a.branch&&a.branch.toLowerCase().trim()!==cu.branch.toLowerCase().trim())continue;
     if(cu&&cu.role==='credit_north'&&NORTH.indexOf(a.branch)<0)continue;
     if(cu&&cu.role==='credit_south'&&SOUTH.indexOf(a.branch)<0)continue;
     // Check not already disbursed
