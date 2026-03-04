@@ -1168,7 +1168,7 @@ function saveData() {
       _isSaving = false;
       console.error('saveData error:', e);
     }
-  }, 600);
+  }, 3000);
 }
 
 function loadData() { return false; }
@@ -1277,12 +1277,18 @@ function startRealtimeSync() {
       saveData();
     }
 
-    // Refresh view if logged in and no modal open
+    // Refresh view if logged in and no modal/form is open
     if (cu) {
-      var anyModalOpen = document.querySelector('.md.op');
+      // Check if any modal overlay is currently open
+      var anyModalOpen = document.querySelector('.mo.op') || 
+                         document.querySelector('#appmod.op') ||
+                         document.querySelector('#lmod.op') ||
+                         document.querySelector('#disbmod.op') ||
+                         document.querySelector('#aprvmod.op');
       if (!anyModalOpen && window._currentTab) {
         showTab(window._currentTab);
       }
+      // Always show sync dot regardless
       showSyncDot();
     }
   }, function(error) {
@@ -1301,7 +1307,7 @@ function showSyncDot() {
   if (!dot) {
     dot = document.createElement('div');
     dot.id = 'syncdot';
-    dot.style.cssText = 'position:fixed;bottom:14px;right:14px;background:#27ae60;color:#fff;font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;z-index:9999;opacity:0;transition:opacity 0.3s';
+    dot.style.cssText = 'position:fixed;bottom:14px;left:14px;background:#27ae60;color:#fff;font-size:10px;font-weight:700;padding:4px 8px;border-radius:20px;z-index:9999;opacity:0;transition:opacity 0.5s;pointer-events:none';
     dot.textContent = '✓ Synced';
     document.body.appendChild(dot);
   }
