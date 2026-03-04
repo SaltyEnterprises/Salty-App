@@ -1399,7 +1399,23 @@ function gTP(lid){
 }
 function canDo(){if(!cu)return false;for(var i=0;i<arguments.length;i++){if(cu.role===arguments[i])return true;}return false;}
 function logAct(type,msg){actLog.unshift({type:type,msg:msg,user:cu?cu.display:'?',username:cu?cu.username:'?',time:now_()});if(actLog.length>200)actLog.pop();}
-function isMine(a){if(!cu)return false;if(cu.role==='admin')return true;if(cu.role==='credit_north')return NORTH.indexOf(a.branch)>=0||(a.region==='NORTH'&&!a.branch);if(cu.role==='credit_south')return SOUTH.indexOf(a.branch)>=0||(a.region==='SOUTH'&&!a.branch);if(cu.role==='officer')return cu.branch?a.branch===cu.branch:a.officerUser===cu.username;if(cu.role==='assistant')return cu.branch?a.branch===cu.branch:true;return false;}
+function isMine(a){
+  if(!cu)return false;
+  if(cu.role==='admin')return true;
+  // Credit controllers see ALL applications if branch is missing/unknown
+  // AND all applications from their region
+  if(cu.role==='credit_north'){
+    if(!a.branch||a.branch==='')return true; // no branch set — show to all CCs
+    return NORTH.indexOf(a.branch)>=0||(a.region==='NORTH');
+  }
+  if(cu.role==='credit_south'){
+    if(!a.branch||a.branch==='')return true; // no branch set — show to all CCs
+    return SOUTH.indexOf(a.branch)>=0||(a.region==='SOUTH');
+  }
+  if(cu.role==='officer')return cu.branch?a.branch===cu.branch:a.officerUser===cu.username;
+  if(cu.role==='assistant')return cu.branch?a.branch===cu.branch:true;
+  return false;
+}
 function findC(id){for(var i=0;i<clients.length;i++){if(clients[i].id===id)return clients[i];}return null;}
 function findL(id){for(var i=0;i<loans.length;i++){if(loans[i].id===id)return loans[i];}return null;}
 function findA(id){for(var i=0;i<applications.length;i++){if(applications[i].id===id)return applications[i];}return null;}
