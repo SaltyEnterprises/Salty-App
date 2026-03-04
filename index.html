@@ -1086,9 +1086,6 @@ function confirmExcelImport() {
 
 
 // ===== FIREBASE FIRESTORE PERSISTENCE =====
-// All data syncs in real-time across all devices via Firebase
-
-// Firebase config for Salty Enterprises
 var firebaseConfig = {
   apiKey: "AIzaSyCwQ7rK50dW0jxPeksS_bYTtDawAH4zIus",
   authDomain: "salty-enterprises.firebaseapp.com",
@@ -1101,14 +1098,16 @@ var firebaseConfig = {
 var _db = null;
 var _fbReady = false;
 var _saveTimer = null;
-var _unsubscribe = null;
+var _isSaving = false;
+var _pendingSave = false;
 
 function initFirebase() {
   try {
+    if (typeof firebase === 'undefined') { _fbReady = false; return; }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     _db = firebase.firestore();
     _fbReady = true;
-    console.log('Firebase connected');
+    console.log('Firebase ready');
   } catch(e) {
     console.error('Firebase init failed:', e);
     _fbReady = false;
@@ -1116,114 +1115,177 @@ function initFirebase() {
 }
 
 function saveData() {
+  // Always save to localStorage immediately as primary storage
+  try {
+    var localData = {
+      clients:clients, loans:loans, payments:payments,
+      applications:applications, disbursements:disbursements,
+      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS
+    };
+    localStorage.setItem('salty_v3', JSON.stringify(localData));
+  } catch(e) { console.warn('localStorage save failed:', e); }
+
+  // Then sync to Firebase
   if (!_fbReady || !_db) return;
-  // Debounce saves — wait 800ms after last change before writing
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(function() {
+    if (_isSaving) { _pendingSave = true; return; }
+    _isSaving = true;
     try {
+      // Strip base64 photos to keep under Firebase 1MB limit
+      function stripPhotos(arr) {
+        return (arr||[]).map(function(p){
+          return (typeof p==='string' && p.length>200) ? '__photo__' : p;
+        });
+      }
+      var cleanApps = (applications||[]).map(function(a) {
+        var c = JSON.parse(JSON.stringify(a));
+        c.businessPhotos = stripPhotos(a.businessPhotos);
+        c.homePhotos = stripPhotos(a.homePhotos);
+        c.guarantorPhotos = stripPhotos(a.guarantorPhotos);
+        return c;
+      });
       var data = {
-        clients: clients, loans: loans, payments: payments,
-        applications: applications, disbursements: disbursements,
-        actLog: actLog.slice(-200), // keep last 200 log entries
-        cidc: cidc, lidc: lidc,
+        clients: clients||[], loans: loans||[], payments: payments||[],
+        applications: cleanApps, disbursements: disbursements||[],
+        actLog: (actLog||[]).slice(-100),
+        cidc: cidc||1, lidc: lidc||1,
         USERS: USERS,
-        updatedAt: new Date().toISOString()
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       _db.collection('salty').doc('maindata').set(data)
-        .then(function(){ console.log('Saved to Firebase'); })
-        .catch(function(e){ console.error('Save error:', e); });
-    } catch(e) { console.error('saveData error:', e); }
-  }, 800);
+        .then(function(){
+          _isSaving = false;
+          if (_pendingSave) { _pendingSave = false; saveData(); }
+          showSyncDot();
+        })
+        .catch(function(e){
+          _isSaving = false;
+          console.error('Firebase save error:', e);
+          // Don't show error toast — data is safe in localStorage
+        });
+    } catch(e) {
+      _isSaving = false;
+      console.error('saveData error:', e);
+    }
+  }, 600);
 }
 
-function loadData() {
-  // Returns a promise — actual loading happens async in startRealtimeSync
-  return false;
-}
+function loadData() { return false; }
 
 function startRealtimeSync() {
+  initFirebase();
+
+  // STEP 1 — Load from localStorage immediately (instant, no waiting)
+  var loadedFromLocal = false;
+  try {
+    var raw = localStorage.getItem('salty_v3');
+    if (raw) {
+      var d = JSON.parse(raw);
+      if (d.clients)       clients       = d.clients;
+      if (d.loans)         loans         = d.loans;
+      if (d.payments)      payments      = d.payments;
+      if (d.applications)  applications  = d.applications;
+      if (d.disbursements) disbursements = d.disbursements;
+      if (d.actLog)        actLog        = d.actLog;
+      if (d.cidc)          cidc          = d.cidc;
+      if (d.lidc)          lidc          = d.lidc;
+      if (d.USERS)         USERS         = d.USERS;
+      loadedFromLocal = true;
+    }
+  } catch(e) {}
+
+  if (!loadedFromLocal) {
+    seedDemo();
+  }
+  showHome();
+
+  // STEP 2 — Connect to Firebase for real-time sync with other devices
   if (!_fbReady || !_db) {
-    // Fallback to localStorage if Firebase unavailable
-    try {
-      var raw = localStorage.getItem('salty_v3');
-      if (raw) {
-        var data = JSON.parse(raw);
-        if (data.clients)      clients      = data.clients;
-        if (data.loans)        loans        = data.loans;
-        if (data.payments)     payments     = data.payments;
-        if (data.applications) applications = data.applications;
-        if (data.disbursements)disbursements= data.disbursements;
-        if (data.actLog)       actLog       = data.actLog;
-        if (data.cidc)         cidc         = data.cidc;
-        if (data.lidc)         lidc         = data.lidc;
-        if (data.USERS)        USERS        = data.USERS;
-      }
-    } catch(e) {}
-    if(!clients.length) seedDemo();
-    else if(!applications.length) seedDemoApps();
-    showHome();
+    toast('⚠️ Working offline — changes saved locally only');
     return;
   }
 
-  // Show loading indicator
-  var appEl = document.getElementById('app');
-  var loadEl = document.createElement('div');
-  loadEl.id = 'fbloader';
-  loadEl.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px';
-  loadEl.innerHTML = '<div style="width:44px;height:44px;border:4px solid #fff;border-top-color:#e74c3c;border-radius:50%;animation:spin 0.8s linear infinite"></div><div style="color:#fff;font-size:14px;font-weight:600">Connecting to server...</div>';
-  document.body.appendChild(loadEl);
+  // Show small sync indicator
+  var syncBar = document.createElement('div');
+  syncBar.id = 'syncbar';
+  syncBar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#e74c3c,#f39c12);z-index:9999;animation:syncpulse 1s ease-in-out infinite';
+  document.body.appendChild(syncBar);
 
-  // Listen for real-time updates
-  _unsubscribe = _db.collection('salty').doc('maindata').onSnapshot(function(doc) {
-    // Remove loader
-    var loader = document.getElementById('fbloader');
-    if (loader) loader.remove();
+  _db.collection('salty').doc('maindata').onSnapshot({
+    includeMetadataChanges: false
+  }, function(doc) {
+    // Remove sync bar
+    var sb = document.getElementById('syncbar');
+    if (sb) sb.remove();
 
-    if (doc.exists) {
-      var data = doc.data();
-      if (data.clients)      clients      = data.clients;
-      if (data.loans)        loans        = data.loans;
-      if (data.payments)     payments     = data.payments;
-      if (data.applications) applications = data.applications;
-      if (data.disbursements)disbursements= data.disbursements;
-      if (data.actLog)       actLog       = data.actLog;
-      if (data.cidc)         cidc         = data.cidc;
-      if (data.lidc)         lidc         = data.lidc;
-      if (data.USERS)        USERS        = data.USERS;
+    if (!doc.exists) {
+      // First time — push local data to Firebase
+      saveData();
+      return;
+    }
 
-      // Refresh current view if already logged in
-      if (cu) {
-        var mc = document.getElementById('mainct');
-        if (mc && window._currentTab) showTab(window._currentTab);
-      } else {
-        if(!clients.length) seedDemo();
-        else if(!applications.length) seedDemoApps();
-        showHome();
+    var data = doc.data();
+    if (!data) return;
+
+    // Only update from Firebase if it has MORE applications than we do locally
+    // This prevents Firebase from wiping a freshly submitted application
+    var fbApps = data.applications || [];
+    var fbClients = data.clients || [];
+    var fbLoans = data.loans || [];
+    var fbPayments = data.payments || [];
+
+    // Merge: take whichever has more data
+    if (fbApps.length >= applications.length) applications = fbApps;
+    if (fbClients.length >= clients.length) clients = fbClients;
+    if (fbLoans.length >= loans.length) loans = fbLoans;
+    if (fbPayments.length >= payments.length) payments = fbPayments;
+    if (data.disbursements) disbursements = data.disbursements;
+    if (data.actLog) actLog = data.actLog;
+    if (data.cidc) cidc = data.cidc;
+    if (data.lidc) lidc = data.lidc;
+    if (data.USERS) USERS = data.USERS;
+
+    // Save merged data back to localStorage
+    try {
+      localStorage.setItem('salty_v3', JSON.stringify({
+        clients:clients, loans:loans, payments:payments,
+        applications:applications, disbursements:disbursements,
+        actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS
+      }));
+    } catch(e) {}
+
+    // Refresh view if logged in and no modal open
+    if (cu) {
+      var anyModalOpen = document.querySelector('.md.op');
+      if (!anyModalOpen && window._currentTab) {
+        showTab(window._currentTab);
       }
-    } else {
-      // No data yet — seed demo and save
-      if(!clients.length) seedDemo();
-      else if(!applications.length) seedDemoApps();
-      showHome();
+      showSyncDot();
     }
   }, function(error) {
-    console.error('Realtime sync error:', error);
-    var loader = document.getElementById('fbloader');
-    if (loader) loader.remove();
-    toast('⚠️ Sync error — working offline');
-    if(!clients.length) seedDemo();
-    showHome();
+    var sb = document.getElementById('syncbar');
+    if (sb) sb.remove();
+    console.error('Sync error:', error);
   });
-}
-
-function clearSavedData() {
-  if (_fbReady && _db) {
-    _db.collection('salty').doc('maindata').delete();
-  }
 }
 
 // Auto-save wrapper
 function save() { saveData(); }
+
+// Show a small green sync dot to confirm data synced
+function showSyncDot() {
+  var dot = document.getElementById('syncdot');
+  if (!dot) {
+    dot = document.createElement('div');
+    dot.id = 'syncdot';
+    dot.style.cssText = 'position:fixed;bottom:14px;right:14px;background:#27ae60;color:#fff;font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;z-index:9999;opacity:0;transition:opacity 0.3s';
+    dot.textContent = '✓ Synced';
+    document.body.appendChild(dot);
+  }
+  dot.style.opacity = '1';
+  setTimeout(function(){ dot.style.opacity = '0'; }, 2000);
+}
 
 
 // ===== PROPER CSV PARSER (handles commas inside quoted fields) =====
@@ -2776,10 +2838,15 @@ function showDelConfirm(msg, onConfirm){
 
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes syncpulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 </style>
 
 <script>
-// Initialize Firebase when page loads
+// Initialize Firebase immediately on page load
+window.addEventListener('DOMContentLoaded', function() {
+  initFirebase();
+});
+// Also try immediately in case DOM already ready
 initFirebase();
 </script>
 
