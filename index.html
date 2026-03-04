@@ -1236,7 +1236,7 @@ function startRealtimeSync() {
       if (d.actLog)        actLog        = d.actLog;
       if (d.cidc)          cidc          = d.cidc;
       if (d.lidc)          lidc          = d.lidc;
-      if (d.USERS)         USERS         = d.USERS;
+      if (d.USERS)         { for (var _lk in d.USERS) { if (d.USERS.hasOwnProperty(_lk)) USERS[_lk] = d.USERS[_lk]; } }
     }
   } catch(e) {}
 
@@ -1313,7 +1313,7 @@ function _startFirebaseListener() {
     loans         = mergedLoans;
     payments      = mergedPays;
     disbursements = mergedDisbs;
-    if (remote.USERS) USERS = remote.USERS;
+    if (remote.USERS) { for (var _rk in remote.USERS) { if (remote.USERS.hasOwnProperty(_rk)) USERS[_rk] = remote.USERS[_rk]; } }
     if (remote.cidc > cidc) cidc = remote.cidc;
     if (remote.lidc > lidc) lidc = remote.lidc;
 
@@ -1338,6 +1338,8 @@ function _startFirebaseListener() {
   }, function(err) {
     console.error('Firebase listener error:', err);
   });
+
+} // end _startFirebaseListener
 
 // Auto-save wrapper
 function save() { saveData(); }
