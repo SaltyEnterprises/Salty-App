@@ -1228,25 +1228,42 @@ function startRealtimeSync() {
     var data = doc.data();
     if (!data) return;
 
-    // Only update from Firebase if it has MORE applications than we do locally
-    // This prevents Firebase from wiping a freshly submitted application
+    // Get Firebase data
     var fbApps = data.applications || [];
     var fbClients = data.clients || [];
     var fbLoans = data.loans || [];
     var fbPayments = data.payments || [];
+    var fbDisbs = data.disbursements || [];
 
-    // Merge: take whichever has more data
-    if (fbApps.length >= applications.length) applications = fbApps;
-    if (fbClients.length >= clients.length) clients = fbClients;
-    if (fbLoans.length >= loans.length) loans = fbLoans;
-    if (fbPayments.length >= payments.length) payments = fbPayments;
-    if (data.disbursements) disbursements = data.disbursements;
-    if (data.actLog) actLog = data.actLog;
-    if (data.cidc) cidc = data.cidc;
-    if (data.lidc) lidc = data.lidc;
+    // Smart merge — combine both local and Firebase, keeping ALL records
+    // This means a submission on one device will NEVER be lost
+    function mergeById(local, remote, idField) {
+      var map = {};
+      // Add all remote records first
+      for (var i = 0; i < remote.length; i++) {
+        var id = remote[i][idField];
+        if (id) map[id] = remote[i];
+      }
+      // Override/add with local records (local is always more up to date)
+      for (var i = 0; i < local.length; i++) {
+        var id = local[i][idField];
+        if (id) map[id] = local[i];
+      }
+      var result = [];
+      for (var key in map) { if (map.hasOwnProperty(key)) result.push(map[key]); }
+      return result;
+    }
+
+    applications  = mergeById(applications, fbApps, 'id');
+    clients       = mergeById(clients, fbClients, 'id');
+    loans         = mergeById(loans, fbLoans, 'id');
+    payments      = mergeById(payments, fbPayments, 'id');
+    disbursements = mergeById(disbursements, fbDisbs, 'id');
     if (data.USERS) USERS = data.USERS;
+    if (data.cidc && data.cidc > cidc) cidc = data.cidc;
+    if (data.lidc && data.lidc > lidc) lidc = data.lidc;
 
-    // Save merged data back to localStorage
+    // Save merged data to localStorage immediately
     try {
       localStorage.setItem('salty_v3', JSON.stringify({
         clients:clients, loans:loans, payments:payments,
@@ -1254,6 +1271,11 @@ function startRealtimeSync() {
         actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS
       }));
     } catch(e) {}
+
+    // Also push merged data back to Firebase so all devices get everything
+    if (_fbReady && _db && !_isSaving) {
+      saveData();
+    }
 
     // Refresh view if logged in and no modal open
     if (cu) {
