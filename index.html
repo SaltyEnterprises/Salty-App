@@ -1725,7 +1725,7 @@ function renderApplications(mc){
         // Photo thumbnails preview
         if(allPhotos.length){
           h+='<div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">';
-          for(var pi=0;pi<Math.min(4,allPhotos.length);pi++){h+='<img src="'+allPhotos[pi]+'" style="height:50px;width:50px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">';}
+          for(var pi=0;pi<Math.min(4,allPhotos.length);pi++){h+='<img src="'+(allPhotos[pi].preview||allPhotos[pi])+'" style="height:50px;width:50px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">';}
           if(allPhotos.length>4)h+='<div style="height:50px;width:50px;background:var(--s2);border-radius:6px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mu)">+'+( allPhotos.length-4)+'</div>';
           h+='</div>';
         }
@@ -1894,9 +1894,9 @@ function viewApp(id,backFn){
   var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]);
   if(allPhotos.length){
     h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128247; Photos ('+allPhotos.length+')</span></div><div style="padding:10px 14px">';
-    if(a.businessPhotos&&a.businessPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Business / Collateral</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.businessPhotos.length;pi++){h+='<img src="'+a.businessPhotos[pi]+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
-    if(a.homePhotos&&a.homePhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Home / Property</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.homePhotos.length;pi++){h+='<img src="'+a.homePhotos[pi]+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
-    if(a.guarantorPhotos&&a.guarantorPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Client Portrait</div><div style="display:flex;flex-wrap:wrap;gap:8px">';for(var pi=0;pi<a.guarantorPhotos.length;pi++){h+='<img src="'+a.guarantorPhotos[pi]+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
+    if(a.businessPhotos&&a.businessPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Business / Collateral</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.businessPhotos.length;pi++){var bsrc=a.businessPhotos[pi].preview||a.businessPhotos[pi];h+='<img src="'+bsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
+    if(a.homePhotos&&a.homePhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Home / Property</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.homePhotos.length;pi++){var hsrc=a.homePhotos[pi].preview||a.homePhotos[pi];h+='<img src="'+hsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
+    if(a.guarantorPhotos&&a.guarantorPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Client Portrait</div><div style="display:flex;flex-wrap:wrap;gap:8px">';for(var pi=0;pi<a.guarantorPhotos.length;pi++){var gsrc=a.guarantorPhotos[pi].preview||a.guarantorPhotos[pi];h+='<img src="'+gsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     h+='</div></div>';
   }
   // Section 7 — Client Signature
