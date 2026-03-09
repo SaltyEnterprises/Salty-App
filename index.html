@@ -1309,9 +1309,27 @@ function _startFirebaseListener() {
 
     // Merge remote into local — keep ALL records from both
     function mergeArr(local, remote, key) {
+      var remoteMap = {};
+      (remote||[]).forEach(function(r){ if(r[key]) remoteMap[r[key]] = r; });
       var map = {};
       (remote||[]).forEach(function(r){ if(r[key]) map[r[key]] = r; });
-      (local||[]).forEach(function(l){ if(l[key]) map[l[key]] = l; }); // local wins
+      (local||[]).forEach(function(l){
+        if(!l[key]) return;
+        var r = remoteMap[l[key]];
+        if (r) {
+          // Local wins overall, but for photo arrays: keep whichever has more real URLs
+          var merged = JSON.parse(JSON.stringify(l));
+          var photoFields = ['businessPhotos','homePhotos','guarantorPhotos'];
+          photoFields.forEach(function(f) {
+            var lp = (l[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
+            var rp = (r[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
+            if (rp.length > lp.length) merged[f] = rp;
+          });
+          map[l[key]] = merged;
+        } else {
+          map[l[key]] = l;
+        }
+      });
       var out = [];
       for (var k in map) out.push(map[k]);
       return out;
