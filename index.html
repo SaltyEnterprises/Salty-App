@@ -11,11 +11,14 @@ window._fbLoadAttempt = 0;
 function loadFirebaseScripts(callback) {
   var cdns = [
     ['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
-     'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js'],
+     'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',
+     'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js'],
     ['https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.min.js',
-     'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.min.js'],
+     'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.min.js',
+     'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-storage-compat.min.js'],
     ['https://unpkg.com/firebase@9.23.0/firebase-app-compat.js',
-     'https://unpkg.com/firebase@9.23.0/firebase-firestore-compat.js']
+     'https://unpkg.com/firebase@9.23.0/firebase-firestore-compat.js',
+     'https://unpkg.com/firebase@9.23.0/firebase-storage-compat.js']
   ];
   
   function tryNext(idx) {
@@ -31,9 +34,18 @@ function loadFirebaseScripts(callback) {
       var s2 = document.createElement('script');
       s2.src = cdns[idx][1];
       s2.onerror = function() { tryNext(idx + 1); };
-      s2.onload = function() { 
-        console.log('Firebase loaded from CDN', idx);
-        callback(true); 
+      s2.onload = function() {
+        var s3 = document.createElement('script');
+        s3.src = cdns[idx][2];
+        s3.onerror = function() {
+          console.warn('Firebase Storage SDK failed to load — photos will be stored locally only');
+          callback(true); // still functional without storage
+        };
+        s3.onload = function() {
+          console.log('Firebase (with Storage) loaded from CDN', idx);
+          callback(true);
+        };
+        document.head.appendChild(s3);
       };
       document.head.appendChild(s2);
     };
@@ -1131,6 +1143,7 @@ var firebaseConfig = {
 };
 
 var _db = null;
+var _storage = null;
 var _fbReady = false;
 var _saveTimer = null;
 var _isSaving = false;
@@ -1146,6 +1159,7 @@ function initFirebase() {
     }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     _db = firebase.firestore();
+    try { _storage = firebase.storage(); console.log('✅ Firebase Storage ready'); } catch(e) { console.warn('Firebase Storage not available:', e.message); }
     _fbReady = true;
     console.log('✅ Firebase ready');
   } catch(e) {
@@ -1179,12 +1193,19 @@ function _pushToFirebase() {
   if (_isSaving) { _pendingSave = true; return; }
   _isSaving = true;
 
-  // Strip photos (too large for Firebase)
+  // Strip base64 photos (too large for Firestore); keep https:// Firebase Storage URLs
+  function stripBase64Photos(arr) {
+    return (arr||[]).map(function(p) {
+      return typeof p === 'string' ? p : (p && p.preview ? p.preview : null);
+    }).filter(function(src) {
+      return src && !src.startsWith('data:'); // keep only https:// URLs
+    });
+  }
   var cleanApps = (applications||[]).map(function(a) {
     var c = JSON.parse(JSON.stringify(a));
-    c.businessPhotos = [];
-    c.homePhotos = [];
-    c.guarantorPhotos = [];
+    c.businessPhotos  = stripBase64Photos(c.businessPhotos);
+    c.homePhotos      = stripBase64Photos(c.homePhotos);
+    c.guarantorPhotos = stripBase64Photos(c.guarantorPhotos);
     return c;
   });
 
@@ -1794,6 +1815,53 @@ function updateAppCalc(){var amt=parseFloat(document.getElementById('apamt').val
 function addColRow(){var tb=document.getElementById('coltbody'),tr=document.createElement('tr');tr.innerHTML='<td><input placeholder="e.g. Upright Fridge"></td><td><input type="number" placeholder="0.00"></td><td><select style="width:100%;border:none;background:transparent;font-size:12px"><option>New</option><option>Good</option><option>Fair</option><option>Old</option></select></td><td><input type="number" placeholder="0.00"></td><td><button class="ab" style="color:var(--r)" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';tb.appendChild(tr);}
 function addG1Row(){var tb=document.getElementById('g1tbl'),tr=document.createElement('tr');tr.innerHTML='<td><input placeholder="Item name"></td><td><select style="width:100%;border:none;background:transparent;font-size:12px"><option>New</option><option>Good</option><option>Fair</option><option>Old</option></select></td><td><input placeholder="Comments"></td><td><button class="ab" style="color:var(--r)" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';tb.appendChild(tr);}
 function addG2Row(){var tb=document.getElementById('g2tbl'),tr=document.createElement('tr');tr.innerHTML='<td><input placeholder="Item name"></td><td><select style="width:100%;border:none;background:transparent;font-size:12px"><option>New</option><option>Good</option><option>Fair</option><option>Old</option></select></td><td><input placeholder="Comments"></td><td><button class="ab" style="color:var(--r)" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';tb.appendChild(tr);}
+// ===== FIREBASE STORAGE PHOTO UPLOAD =====
+// Uploads a single base64 data-URL to Firebase Storage and returns a download URL promise.
+function _uploadOnePhoto(dataUrl, storagePath) {
+  return new Promise(function(resolve) {
+    if (!_storage) { resolve(null); return; }
+    var ref = _storage.ref().child(storagePath);
+    ref.putString(dataUrl, 'data_url')
+      .then(function(snapshot) { return snapshot.ref.getDownloadURL(); })
+      .then(function(url) { resolve(url); })
+      .catch(function(e) { console.error('Photo upload error:', storagePath, e.message); resolve(null); });
+  });
+}
+
+// Uploads all photos for an application. Updates the app record in-place with URLs, then re-saves.
+function uploadPhotosForApp(appId) {
+  if (!_storage) return; // Firebase Storage not loaded — photos stay local only
+  var app = findA(appId);
+  if (!app) return;
+
+  var uploads = [];
+  var types = ['businessPhotos', 'homePhotos', 'guarantorPhotos'];
+  types.forEach(function(type) {
+    (app[type] || []).forEach(function(photo, idx) {
+      var src = typeof photo === 'string' ? photo : (photo && photo.preview ? photo.preview : null);
+      if (!src || !src.startsWith('data:')) return; // already a URL or empty, skip
+      var path = 'photos/' + appId + '/' + type + '_' + idx;
+      var p = _uploadOnePhoto(src, path).then(function(url) {
+        if (url) app[type][idx] = url; // replace base64 with HTTPS URL in-memory
+      });
+      uploads.push(p);
+    });
+  });
+
+  if (!uploads.length) return;
+
+  // Show upload progress to the officer
+  toast('⏫ Uploading ' + uploads.length + ' photo(s) to cloud…');
+  Promise.all(uploads).then(function() {
+    save(); // re-save now that photos are URLs (will sync to Firestore)
+    toast('📷 Photos uploaded successfully!');
+    console.log('✅ All photos uploaded for app', appId);
+  }).catch(function(e) {
+    console.error('Photo batch upload failed:', e);
+    toast('⚠️ Some photos failed to upload. Data saved locally.');
+  });
+}
+
 function saveApp(isDraft){
   var name=document.getElementById('apn').value.trim(),nrc=document.getElementById('apnrc').value.trim(),phone=document.getElementById('apph').value.trim(),branch=document.getElementById('apbr').value,amt=parseFloat(document.getElementById('apamt').value)||0;
   if(!isDraft&&(!name||!nrc||!phone||!branch||!amt)){toast('Please fill all required fields.');return;}
@@ -1802,7 +1870,10 @@ function saveApp(isDraft){
   var g1trs=document.getElementById('g1tbl').querySelectorAll('tr');for(var i=0;i<g1trs.length;i++){var ins=g1trs[i].querySelectorAll('input,select');if(ins[0]&&ins[0].value.trim())g1Rows.push({item:ins[0].value,condition:ins[1]?ins[1].value:'',comments:ins[2]?ins[2].value:''});}
   var g2trs=document.getElementById('g2tbl').querySelectorAll('tr');for(var i=0;i<g2trs.length;i++){var ins=g2trs[i].querySelectorAll('input,select');if(ins[0]&&ins[0].value.trim())g2Rows.push({item:ins[0].value,condition:ins[1]?ins[1].value:'',comments:ins[2]?ins[2].value:''});}
   var app={id:gAid(),name:name,nrc:nrc,phone:phone,branch:branch,occupation:document.getElementById('apocc').value,address:document.getElementById('apadr').value,businessAddress:document.getElementById('apbadr').value,amountRequested:amt,amountDue:amt*1.4,dailyPayment:amt*1.4/25,colType:document.getElementById('apcoltype').value,colRows:colRows,g1:{name:document.getElementById('apg1n').value,nrc:document.getElementById('apg1nrc').value,phone:document.getElementById('apg1ph').value,ba:document.getElementById('apg1ba').value,ha:document.getElementById('apg1ha').value,items:g1Rows,sig:getSigData('sig-g1')},g2:{name:document.getElementById('apg2n').value,nrc:document.getElementById('apg2nrc').value,phone:document.getElementById('apg2ph').value,ba:document.getElementById('apg2ba').value,ha:document.getElementById('apg2ha').value,items:g2Rows,sig:getSigData('sig-g2')},spouse:{name:document.getElementById('apspn').value,nrc:document.getElementById('apspnrc').value,phone:document.getElementById('apspph').value,sig:getSigData('sig-spouse')},clientSig:getSigData('sig-client'),businessPhotos:pph.business.slice(),homePhotos:pph.home.slice(),guarantorPhotos:pph.guarantor.slice(),officerName:cu.display,officerUser:cu.username,status:isDraft?'draft':'submitted',createdAt:now_(),submittedAt:isDraft?null:now_()};
-  applications.push(app);logAct('act',(isDraft?'Saved draft for ':'Submitted app for ')+name);save();closeModal('appmod');toast(isDraft?'Draft saved!':'Application submitted to Credit Controller!');showTab('myapps');
+  applications.push(app);logAct('act',(isDraft?'Saved draft for ':'Submitted app for ')+name);save();closeModal('appmod');toast(isDraft?'Draft saved!':'Application submitted to Credit Controller!');
+  // Upload photos to Firebase Storage in the background (replaces base64 with URLs, then re-syncs)
+  if (!isDraft) uploadPhotosForApp(app.id);
+  showTab('myapps');
 }
 function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);save();toast('Submitted to Credit Controller!');renderMyApps(document.getElementById('mainct'));}
 function openApproval(id){
