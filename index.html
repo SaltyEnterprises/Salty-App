@@ -2837,16 +2837,32 @@ function swRep(type,btn){
 // ── HELPERS ────────────────────────────────────────────────────────────────
 
 function rptBranches(){
-  // Return branches that have at least one loan, in order
-  var order=['Mufulira','Chililabombwe','Chingola','Nakadoli','Lusaka','Ndola','Luanshya','Kalulushi'];
+  // Determine which branches this user can see
+  var northBranches=['Mufulira','Chililabombwe','Chingola','Nakadoli'];
+  var southBranches=['Lusaka','Ndola','Luanshya','Kalulushi'];
+  var allowed;
+  if(canDo('admin')){
+    allowed=northBranches.concat(southBranches);
+  } else if(cu&&cu.role==='credit_north'){
+    allowed=northBranches;
+  } else if(cu&&cu.role==='credit_south'){
+    allowed=southBranches;
+  } else if(cu&&cu.branch){
+    // Officer — only their branch
+    allowed=[cu.branch];
+  } else {
+    allowed=northBranches.concat(southBranches);
+  }
+  // Only include branches that have at least one loan
   var active={};
   for(var i=0;i<loans.length;i++){
     var c=findC(loans[i].clientId);
     if(c)active[c.branch]=true;
   }
   var out=[];
-  for(var i=0;i<order.length;i++)if(active[order[i]])out.push(order[i]);
-  return out.length?out:order.slice(0,4);
+  for(var i=0;i<allowed.length;i++)if(active[allowed[i]])out.push(allowed[i]);
+  // Fall back to all allowed branches even if no loans yet
+  return out.length?out:allowed;
 }
 
 // Working-day dates Mon-Fri for a week starting Monday
