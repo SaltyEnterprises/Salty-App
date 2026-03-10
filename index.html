@@ -1182,7 +1182,7 @@ function saveData() {
     localStorage.setItem('salty_v3', JSON.stringify({
       clients:clients, loans:loans, payments:payments,
       applications:applications, disbursements:disbursements,
-      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS
+      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS, manualEntries:manualEntries
     }));
   } catch(e) {}
 
@@ -1220,6 +1220,7 @@ function _pushToFirebase() {
     cidc: cidc||1,
     lidc: lidc||1,
     USERS: USERS,
+    manualEntries: manualEntries||{},
     ts: Date.now()
   };
 
@@ -1259,6 +1260,7 @@ function startRealtimeSync() {
       if (d.cidc)          cidc          = d.cidc;
       if (d.lidc)          lidc          = d.lidc;
       if (d.USERS)         { for (var _lk in d.USERS) { if (d.USERS.hasOwnProperty(_lk)) USERS[_lk] = d.USERS[_lk]; } }
+      if (d.manualEntries) manualEntries = d.manualEntries;
     }
   } catch(e) {}
 
@@ -1356,6 +1358,7 @@ function _startFirebaseListener() {
     if (remote.USERS) { for (var _rk in remote.USERS) { if (remote.USERS.hasOwnProperty(_rk)) USERS[_rk] = remote.USERS[_rk]; } }
     if (remote.cidc > cidc) cidc = remote.cidc;
     if (remote.lidc > lidc) lidc = remote.lidc;
+    if (remote.manualEntries) { for (var _mk in remote.manualEntries) { manualEntries[_mk]=remote.manualEntries[_mk]; } }
 
     // Save merged to localStorage
     try {
@@ -1444,6 +1447,7 @@ for(var _i=0;_i<ALL_B.length;_i++){
 }
 var cu=null,abr='ALL',cpid=null,cidc=1010,lidc=2010;
 var clients=[],loans=[],payments=[],applications=[],disbursements=[],actLog=[];
+var manualEntries={};  // keyed "type:branch:period" => value
 var pph={business:[],home:[],guarantor:[]};
 var aprvId=null,ipend=[],lipend=[];
 function pad(n){return n<10?'0'+n:String(n);}
@@ -2342,7 +2346,7 @@ function renderLoans(mc,filter){
   }
   if(filter){var fl=[];for(var i=0;i<list.length;i++){var lc=findC(list[i].clientId);if((lc&&lc.name.toLowerCase().indexOf(filter)>=0)||(list[i].code&&list[i].code.toLowerCase().indexOf(filter)>=0))fl.push(list[i]);}list=fl;}
   var today=td_();
-  var h='<div class="cd"><div class="cdh"><span class="cdt">Daily Loans ('+list.length+')</span><div style="display:flex;gap:6px;flex-wrap:wrap"><input class="si2" placeholder="Search..." oninput="renderLoans(document.getElementById(\'mainct\'),this.value.toLowerCase())">'+(canDo('admin','credit_north','credit_south')?'<button class="btn btg bts" onclick="openLimpModal()">Upload CSV</button><button class="btn btr bts" onclick="issueLoanTo(null)">+ New Loan</button>':'')+'</div></div><div class="tw"><table><thead><tr><th>Code</th><th>Client</th><th>Branch</th><th>Given</th><th>Due</th><th>Daily</th><th>Day</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>';
+  var h='<div class="cd"><div class="cdh"><span class="cdt">Daily Loans ('+list.length+')</span><div style="display:flex;gap:6px;flex-wrap:wrap"><input class="si2" placeholder="Search..." oninput="renderLoans(document.getElementById(\'mainct\'),this.value.toLowerCase())">'+(canDo('admin','credit_north','credit_south')?'<button class="btn btg bts" onclick="openLimpModal()">Upload CSV</button><button class="btn btr bts" onclick="issueLoanTo(null)">+ New Loan</button>':'')+'</div></div><div class="tw"><table><thead><tr><th>Code</th><th>Client</th><th>Series</th><th>Branch</th><th>Given</th><th>Due</th><th>Daily</th><th>Day</th><th>Paid</th><th>Balance</th><th>Advance</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!list.length)h+='<tr><td colspan="11"><div class="es"><div class="ei">&#128176;</div><div class="et">No loans</div></div></td></tr>';
   for(var i=0;i<list.length;i++){var l=list[i],lc=findC(l.clientId),tp=gTP(l.id),bal=Math.max(0,(l.amountDue||0)-tp),dn=l.status==='Active'?Math.min(LDAYS,Math.max(0,daysB(l.dateGiven,today)+1)):LDAYS,isN=NORTH.indexOf(lc&&lc.branch)>=0;h+='<tr>';
     var lstats=calcLoanStats(l);
@@ -2836,17 +2840,35 @@ function swRep(type,btn){
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 
+// Manual entry getters/setters
+// Keys: "collpen:BRANCH:YYYY-MM-DD"  (daily collected penalty)
+//       "balance:BRANCH:YYYY-WW"     (weekly balance created, WW = monday date)
+//       "balance:BRANCH:YYYY-MM"     (monthly balance created)
+function meKey(type,branch,period){return type+':'+branch+':'+period;}
+function meGet(type,branch,period){return manualEntries[meKey(type,branch,period)]||0;}
+function meSet(type,branch,period,val){manualEntries[meKey(type,branch,period)]=val;save();}
+
+// Inline editable cell for manual entry
+function meCell(type,branch,period,cls){
+  var val=meGet(type,branch,period);
+  var k=meKey(type,branch,period);
+  return '<td style="padding:2px"><input type="number" min="0" step="0.01" value="'+(val||'')+'" '
+    +'placeholder="0.00" '
+    +'style="width:80px;font-family:monospace;font-size:10px;padding:2px 4px;border:1px solid rgba(139,90,43,.3);border-radius:4px;background:rgba(255,255,200,.15);'+(cls?'color:'+cls:'')+'" '
+    +'onchange="meSet(\''+type+'\',\''+branch+'\',\''+period+'\',parseFloat(this.value)||0)" '
+    +'onclick="this.select()">'
+    +'</td>';
+}
+
 function rptBranches(){
   // Determine which branches this user can see
-  var northBranches=['Mufulira','Chililabombwe','Chingola','Nakadoli'];
-  var southBranches=['Lusaka','Ndola','Luanshya','Kalulushi'];
   var allowed;
   if(canDo('admin')){
-    allowed=northBranches.concat(southBranches);
+    allowed=NORTH.concat(SOUTH);
   } else if(cu&&cu.role==='credit_north'){
-    allowed=northBranches;
+    allowed=NORTH.slice();
   } else if(cu&&cu.role==='credit_south'){
-    allowed=southBranches;
+    allowed=SOUTH.slice();
   } else if(cu&&cu.branch){
     // Officer — only their branch
     allowed=[cu.branch];
@@ -3008,7 +3030,7 @@ function rptCollected(branch,from,to){
 // ── TABLE BUILDER ──────────────────────────────────────────────────────────
 
 function rptTable(branches,rows){
-  // rows = [{label, vals:[per-branch], cls, bold}]
+  // rows = [{label, vals:[per-branch], cls, bold, manual:{type,period}}]
   var h='<div class="tw" style="overflow-x:auto"><table class="drt" style="font-size:11px">';
   h+='<thead><tr><th style="min-width:170px">METRIC</th>';
   for(var i=0;i<branches.length;i++)h+='<th>'+branches[i].toUpperCase().substring(0,7)+'</th>';
@@ -3017,6 +3039,22 @@ function rptTable(branches,rows){
     var r=rows[ri];
     if(r.divider){h+='<tr><td colspan="'+(branches.length+2)+'" style="background:rgba(139,90,43,.08);height:3px;padding:0"></td></tr>';continue;}
     if(r.heading){h+='<tr><td colspan="'+(branches.length+2)+'" style="background:rgba(139,90,43,.06);font-size:10px;font-weight:700;color:var(--r2);letter-spacing:.5px;padding:5px 8px">'+r.label+'</td></tr>';continue;}
+
+    if(r.manual){
+      // Manual entry row — show input fields per branch, sum in summary
+      h+='<tr'+(r.bold?' style="font-weight:700;background:rgba(139,90,43,.04)"':'')+'>';
+      h+='<td style="color:var(--mu);font-size:10px">'+r.label+' <span style="font-size:8px;color:var(--gd)">✎</span></td>';
+      var mSum=0;
+      for(var i=0;i<branches.length;i++){
+        var mv=meGet(r.manual.type,branches[i],r.manual.period);
+        mSum+=mv;
+        h+=meCell(r.manual.type,branches[i],r.manual.period,r.cls);
+      }
+      h+='<td style="font-weight:700;font-family:monospace;'+(r.cls?'color:'+r.cls:'')+'">'+(r.count?mSum:zmw(mSum))+'</td>';
+      h+='</tr>';
+      continue;
+    }
+
     var sum=0;for(var i=0;i<r.vals.length;i++)sum+=r.vals[i]||0;
     h+='<tr'+(r.bold?' style="font-weight:700;background:rgba(139,90,43,.04)"':'')+'>';
     h+='<td style="color:var(--mu);font-size:10px">'+r.label+'</td>';
@@ -3064,7 +3102,7 @@ function buildDailyReport(){
     {label:'CUMULATIVE ADVANCE', vals:branches.map(function(b){return stats[b].cumAdv;}), cls:''},
     {divider:true},
     {label:'CREATED PENALTY',    vals:bv('createdPen'),cls:'var(--wn)'},
-    {label:'COLLECTED PENALTY',  vals:bv('collPen'),   cls:'var(--ok)'},
+    {label:'COLLECTED PENALTY',  vals:bv('collPen'),   cls:'var(--ok)', manual:{type:'collpen',period:dateVal}},
     {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}), cls:'var(--wn)'},
     {divider:true},
     {label:'TOTAL RECOVERY',     vals:bv('recovery'),  cls:'var(--in)'},
@@ -3144,13 +3182,13 @@ function buildWeeklyReport(){
       {label:'BALANCE',            vals:branches.map(function(b){return stats[b].balance;}), cls:'var(--r)'},
       {label:'ADVANCE',            vals:branches.map(function(b){return stats[b].adv;}),     cls:'var(--gd)'},
       {label:'CREATED PENALTY',    vals:branches.map(function(b){return stats[b].createdPen;}), cls:'var(--wn)'},
-      {label:'COLLECTED PENALTY',  vals:branches.map(function(b){return stats[b].collPen;}), cls:''},
+      {label:'COLLECTED PENALTY',  vals:branches.map(function(b){return stats[b].collPen;}), cls:'var(--ok)', manual:{type:'collpen',period:dateStr}},
       {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}),  cls:'var(--wn)'},
       {label:'TOTAL RECOVERY',     vals:branches.map(function(b){return stats[b].recovery;}),cls:'var(--in)'},
       {label:'TOTAL COLLECTED',    vals:branches.map(function(b){return stats[b].totalColl;}),cls:'var(--ok)',bold:true},
       {label:'CUMULATIVE BALANCE', vals:branches.map(function(b){return stats[b].cumBal;}),  cls:'var(--r)',bold:true},
-      {label:'FOAM MONEY',         vals:branches.map(function(){return 0;}), cls:''},
-      {label:'EXPENSE',            vals:branches.map(function(){return 0;}), cls:'var(--r)'},
+      {label:'FOAM MONEY',         vals:branches.map(function(){return 0;}), cls:'', manual:{type:'foam',period:dateStr}},
+      {label:'EXPENSE',            vals:branches.map(function(){return 0;}), cls:'var(--r)', manual:{type:'expense',period:dateStr}},
     ];
     var dobj=new Date(dateStr+'T00:00:00');
     var dnames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -3191,7 +3229,7 @@ function buildWeeklyReport(){
     {divider:true},
     {label:'WEEKLY EXPECTED',      vals:branches.map(function(b){return wStats[b].weeklyExp;}), cls:''},
     {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return wStats[b].coll;}),      cls:'var(--ok)'},
-    {label:'BALANCE CREATED',      vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
+    {label:'BALANCE CREATED',      vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)', manual:{type:'balance',period:monday}},
     {divider:true},
     {label:'ADVANCE',              vals:branches.map(function(b){return wStats[b].adv;}),       cls:'var(--gd)'},
     {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return wStats[b].cumAdv;}),    cls:''},
@@ -3207,8 +3245,8 @@ function buildWeeklyReport(){
     {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
     {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return wStats[b].cumBal;}),    cls:'var(--r)', bold:true},
     {divider:true},
-    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}), cls:''},
-    {label:'EXPENSES',             vals:branches.map(function(){return 0;}), cls:'var(--r)'},
+    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}), cls:'', manual:{type:'foam',period:monday}},
+    {label:'EXPENSES',             vals:branches.map(function(){return 0;}), cls:'var(--r)', manual:{type:'expense',period:monday}},
   ];
 
   h+='<div class="cd" style="margin-bottom:14px;border:2px solid var(--r2)">';
@@ -3307,10 +3345,10 @@ function buildMonthlyReport(){
       {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return wStats[b].totalExp;}),  cls:'',bold:true},
       {label:'WEEKLY EXPECTED',      vals:branches.map(function(b){return wStats[b].weeklyExp;}), cls:''},
       {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return wStats[b].coll;}),      cls:'var(--ok)'},
-      {label:'BALANCE CREATED',      vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
+      {label:'BALANCE CREATED',      vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)', manual:{type:'balance',period:monday}},
       {label:'ADVANCE',              vals:branches.map(function(b){return wStats[b].adv;}),       cls:'var(--gd)'},
       {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return wStats[b].cumAdv;}),    cls:''},
-      {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return wStats[b].collPen;}),   cls:'var(--ok)'},
+      {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return wStats[b].collPen;}),   cls:'var(--ok)', manual:{type:'collpen',period:monday}},
       {label:'CREATED PENALTY',      vals:branches.map(function(b){return wStats[b].createdPen;}),cls:'var(--wn)'},
       {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return wStats[b].cumPen;}),    cls:'var(--wn)'},
       {label:'RECOVERY THIS WEEK',   vals:branches.map(function(b){return wStats[b].recovery;}),  cls:'var(--in)'},
@@ -3318,8 +3356,8 @@ function buildMonthlyReport(){
       {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return wStats[b].totalColl;}), cls:'var(--ok)',bold:true},
       {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
       {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return wStats[b].cumBal;}),    cls:'var(--r)',bold:true},
-      {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
-      {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+      {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:'', manual:{type:'foam',period:monday}},
+      {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)', manual:{type:'expense',period:monday}},
     ];
 
     h+='<div class="cd" style="margin-bottom:10px">';
@@ -3328,25 +3366,25 @@ function buildMonthlyReport(){
     h+='</div>';
   }
 
-  // Monthly totals
+  var monthPeriod=monthSel; // "YYYY-MM"
   var mRows=[
     {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return monthTotals[b].disp;}),      cls:'var(--in)'},
     {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return monthTotals[b].profit;}),    cls:''},
     {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return monthTotals[b].disp*1.4;}),  cls:'',bold:true},
     {label:'MONTHLY EXPECTED',     vals:branches.map(function(b){return monthTotals[b].weeklyExp;}), cls:''},
     {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return monthTotals[b].coll;}),      cls:'var(--ok)'},
-    {label:'BALANCE CREATED',      vals:branches.map(function(b){return monthTotals[b].balance;}),   cls:'var(--r)'},
+    {label:'BALANCE CREATED',      vals:branches.map(function(b){return monthTotals[b].balance;}),   cls:'var(--r)', manual:{type:'balance',period:monthPeriod}},
     {label:'ADVANCE',              vals:branches.map(function(b){return monthTotals[b].adv;}),       cls:'var(--gd)'},
     {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return rptCumAdvance(b);}),         cls:''},
-    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return monthTotals[b].collPen;}),   cls:'var(--ok)'},
+    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return monthTotals[b].collPen;}),   cls:'var(--ok)', manual:{type:'collpen',period:monthPeriod}},
     {label:'CREATED PENALTY',      vals:branches.map(function(b){return monthTotals[b].createdPen;}),cls:'var(--wn)'},
     {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return rptCumPenalty(b);}),         cls:'var(--wn)'},
     {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return monthTotals[b].recovery;}),  cls:'var(--in)'},
     {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return monthTotals[b].totalColl;}), cls:'var(--ok)',bold:true},
     {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return monthTotals[b].balance;}),   cls:'var(--r)'},
     {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return rptCumBalance(b);}),         cls:'var(--r)',bold:true},
-    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
-    {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:'', manual:{type:'foam',period:monthPeriod}},
+    {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)', manual:{type:'expense',period:monthPeriod}},
   ];
 
   h+='<div class="cd" style="border:2px solid var(--r2)">';
@@ -3442,8 +3480,8 @@ function buildQuarterlyReport(){
       {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return mStats[b].totalColl;}), cls:'var(--ok)',bold:true},
       {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return mStats[b].balance;}),   cls:'var(--r)'},
       {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return mStats[b].cumBal;}),    cls:'var(--r)',bold:true},
-      {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
-      {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+      {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:'', manual:{type:'foam',period:mo.yr+'-'+pad(mo.mn+1)}},
+      {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)', manual:{type:'expense',period:mo.yr+'-'+pad(mo.mn+1)}},
     ];
     h+='<div class="cd" style="margin-bottom:10px">';
     h+='<div class="cdh"><span class="cdt">'+mo.label+' '+mo.yr+'</span></div>';
@@ -3451,26 +3489,26 @@ function buildQuarterlyReport(){
     h+='</div>';
   }
 
-  // Quarter total
+  var qPeriod=yr+'-Q'+(qn+1);
   var qRows=[
     {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return qTotals[b].disp;}),      cls:'var(--in)'},
     {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return qTotals[b].disp*0.4;}),  cls:''},
     {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return qTotals[b].disp*1.4;}),  cls:'',bold:true},
     {label:'QUARTERLY EXPECTED',   vals:branches.map(function(b){return qTotals[b].monthlyExp;}),cls:''},
     {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return qTotals[b].coll;}),      cls:'var(--ok)'},
-    {label:'BALANCE CREATED',      vals:branches.map(function(b){return qTotals[b].balance;}),   cls:'var(--r)'},
+    {label:'BALANCE CREATED',      vals:branches.map(function(b){return qTotals[b].balance;}),   cls:'var(--r)', manual:{type:'balance',period:qPeriod}},
     {label:'ADVANCE',              vals:branches.map(function(b){return qTotals[b].adv;}),       cls:'var(--gd)'},
     {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return rptCumAdvance(b);}),     cls:''},
-    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return qTotals[b].collPen;}),   cls:'var(--ok)'},
+    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return qTotals[b].collPen;}),   cls:'var(--ok)', manual:{type:'collpen',period:qPeriod}},
     {label:'CREATED PENALTY',      vals:branches.map(function(b){return qTotals[b].createdPen;}),cls:'var(--wn)'},
     {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return rptCumPenalty(b);}),     cls:'var(--wn)'},
     {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return qTotals[b].recovery;}),  cls:'var(--in)'},
     {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return qTotals[b].totalColl;}), cls:'var(--ok)',bold:true},
     {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return qTotals[b].balance;}),   cls:'var(--r)'},
     {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return rptCumBalance(b);}),     cls:'var(--r)',bold:true},
-    {label:'BALANCE IN COLLATERAL',vals:branches.map(function(){return 0;}),cls:''},
-    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
-    {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+    {label:'BALANCE IN COLLATERAL',vals:branches.map(function(){return 0;}),cls:'', manual:{type:'collateral',period:qPeriod}},
+    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:'', manual:{type:'foam',period:qPeriod}},
+    {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)', manual:{type:'expense',period:qPeriod}},
   ];
 
   h+='<div class="cd" style="border:2px solid var(--r2)">';
