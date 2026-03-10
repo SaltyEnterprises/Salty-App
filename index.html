@@ -731,6 +731,25 @@ I agree to Salty Enterprises loan terms: 25-day repayment, daily payments, 2% da
 <div class="mft"><button class="btn btg" onclick="closeModal('aprvmod')">Cancel</button><button class="btn btr" onclick="decideApp('reject')">Reject</button><button class="btn btk" onclick="decideApp('approve')">Approve</button></div>
 </div></div>
 
+
+<!-- ===== SERIES PICKER MODAL ===== -->
+<div class="mo" id="seriespickermod"><div class="md" style="max-width:400px;margin-top:80px">
+<div class="mtt">&#127981; Assign Series Letter</div>
+<input type="hidden" id="series-disb-id">
+<div style="padding:10px 0 6px">
+  <div style="font-size:13px;color:var(--mu);margin-bottom:14px">Enter the series letter for this disbursement batch. All new clients in this list will be assigned codes using this letter (e.g. <strong>N1, N2, N3...</strong>).</div>
+  <div class="fg">
+    <label class="fl">Series Letter (A–Z)</label>
+    <input class="fi" id="series-letter-input" maxlength="1" placeholder="e.g. N" style="text-transform:uppercase;font-size:28px;font-weight:800;text-align:center;letter-spacing:4px" oninput="this.value=this.value.toUpperCase()">
+  </div>
+  <div style="font-size:11px;color:var(--mu);margin-top:6px">&#9432; Renewing clients keep their existing code — only new clients get assigned this series letter.</div>
+</div>
+<div class="mft">
+  <button class="btn btg" onclick="closeModal('seriespickermod')">Cancel</button>
+  <button class="btn btk" onclick="confirmApproveSeries()">&#10003; Approve &amp; Assign Codes</button>
+</div>
+</div></div>
+
 <div class="mo" id="disbmod"><div class="md mlg" style="margin-top:10px">
 <div class="mtt">&#128229; Create Friday Disbursement List</div><div style="background:rgba(30,132,73,.08);border:1px solid rgba(30,132,73,.25);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1e8449"><strong>Step:</strong> Select approved clients getting their loan this Friday. This list will go to the Credit Controller for final approval.</div>
 <div class="fr">
@@ -1510,7 +1529,7 @@ function doLogout(){logAct('out','Signed out');cu=null;document.getElementById('
 function makeH(id){return function(){showTab(id);};}
 function buildNav(){
   var r=cu.role,tabs=[];
-  if(r==='admin'||r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  if(r==='admin'||r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
   else if(r==='officer'){tabs=[{id:'myapps',label:'My Submissions',b:true},{id:'newapp',label:'+ Register Client'}];}
   else if(r==='assistant'){tabs=[{id:'disbursements',label:'Disbursements',b:true},{id:'myapps',label:'Approved Clients'}];}
   var nav=document.getElementById('navbar');nav.innerHTML='';
@@ -1584,6 +1603,7 @@ function showTab(n){
   else if(n==='disbursements')renderDisbursements(mc);
   else if(n==='clients')renderClients(mc,'');
   else if(n==='loans')renderLoans(mc,'');
+  else if(n==='dailypay')renderDailyPay(mc);
   else if(n==='collateral')renderCollateral(mc);
   else if(n==='reports')renderReports(mc);
   else if(n==='activity')renderActivity(mc);
@@ -1630,6 +1650,7 @@ function renderMyApps(mc){
       h+='<td style="display:flex;gap:4px">';
       h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'renderMyApps(document.getElementById(\\\'mainct\\\'))\')">View</button>';
       if(a.status==='draft')h+='<button class="btn btr bts" style="font-size:10px;padding:4px 8px" onclick="submitApp(\''+a.id+'\')">Submit</button>';
+      if(a.status==='draft'||a.status==='submitted'||a.status==='rejected')h+='<button class="ab" style="color:var(--in);border-color:var(--in)" onclick="openEditApp(\''+a.id+'\')">&#9998; Edit</button>';
       h+='</td></tr>';
     }
     h+='</tbody></table></div></div>';
@@ -2172,7 +2193,7 @@ function submitDisbList(){
   var dcs=[];
   for(var i=0;i<sel.length;i++){
     var a=sel[i];
-    dcs.push({appId:a.id,name:a.name,branch:a.branch,nrc:a.nrc,amount:a.amountApproved});
+    dcs.push({appId:a.id,name:a.name,branch:a.branch,nrc:a.nrc,amount:a.amountApproved||a.amountRequested||0});
   }
   // Use first client branch as primary, or 'Multiple' if mixed
   var branches=[];
@@ -2184,13 +2205,55 @@ function submitDisbList(){
   toast('Disbursement list submitted to Credit Controller for approval!');
   renderDisbursements(document.getElementById('mainct'));
 }
-function approveDisb(id){
+// --- Series picker modal ---
+function openSeriesPicker(disbId) {
+  // Suggest next available letter based on existing loans
+  var usedLetters = {};
+  for(var i=0;i<loans.length;i++){
+    if(loans[i].series) usedLetters[loans[i].series.toUpperCase()] = true;
+  }
+  // Find next letter from A onwards
+  var suggested = 'N';
+  for(var code=65;code<=90;code++){
+    var l=String.fromCharCode(code);
+    if(!usedLetters[l]){suggested=l;break;}
+  }
+  document.getElementById('series-disb-id').value = disbId;
+  document.getElementById('series-letter-input').value = suggested;
+  document.getElementById('seriespickermod').classList.add('op');
+}
+function confirmApproveSeries() {
+  var disbId = document.getElementById('series-disb-id').value;
+  var letter = document.getElementById('series-letter-input').value.trim().toUpperCase();
+  if(!letter || letter.length !== 1 || !/[A-Z]/.test(letter)) {
+    toast('Enter a single letter (A-Z) for the series.');return;
+  }
+  closeModal('seriespickermod');
+  approveDisb(disbId, letter);
+}
+function approveDisb(id, seriesLetter){
   var d=findD(id);if(!d)return;
-  d.status='approved';d.approvedBy=cu.display;d.approvedAt=now_();
+  seriesLetter = (seriesLetter||'').toUpperCase();
+  // Validate amounts before approving
+  var zeroAmounts=[];
+  for(var i=0;i<d.clients.length;i++){if(!(d.clients[i].amount>0))zeroAmounts.push(d.clients[i].name);}
+  if(zeroAmounts.length){toast('Cannot approve — missing loan amount for: '+zeroAmounts.join(', '));return;}
+  d.status='approved';d.approvedBy=cu.display;d.approvedAt=now_();d.series=seriesLetter;
+  // Find next available number for this series (shared across all branches)
+  var usedNums={};
+  for(var i=0;i<clients.length;i++){
+    var cc=clients[i].code||'';
+    if(cc.charAt(0)===seriesLetter){
+      var n=parseInt(cc.slice(1));
+      if(!isNaN(n)) usedNums[n]=true;
+    }
+  }
+  var nextNum=1;
+  while(usedNums[nextNum]) nextNum++;
   var created=0;
   for(var i=0;i<d.clients.length;i++){
     var dc=d.clients[i],a=findA(dc.appId);
-    if(!a)continue;
+    if(!a){console.warn('Application not found for disbursement client:',dc.name,dc.appId);continue;}
     // Find or create client record
     var c=null;
     for(var j=0;j<clients.length;j++){
@@ -2199,7 +2262,13 @@ function approveDisb(id){
       }
     }
     if(!c){
-      c={id:gCid(),code:a.id,sourceAppId:a.id,name:a.name,nrc:a.nrc||'',phone:a.phone||'',
+      // New client — assign next series code
+      var clientCode = seriesLetter + nextNum;
+      while(usedNums[nextNum]) nextNum++;
+      clientCode = seriesLetter + nextNum;
+      usedNums[nextNum] = true;
+      nextNum++;
+      c={id:gCid(),code:clientCode,sourceAppId:a.id,name:a.name,nrc:a.nrc||'',phone:a.phone||'',
         branch:a.branch,address:a.address||'',occupation:a.occupation||'',
         gname:(a.g1&&a.g1.name)||'',gnrc:(a.g1&&a.g1.nrc)||'',gphone:(a.g1&&a.g1.phone)||'',
         grel:'Guarantor',gaddress:(a.g1&&a.g1.ha)||'',
@@ -2210,13 +2279,15 @@ function approveDisb(id){
         collateralLockedDate:d.date,regDate:d.date};
       clients.push(c);
     }
-    // Create loan with day-based payment tracking
-    var newLoan={id:gLid(),code:a.id,clientId:c.id,sourceAppId:a.id,
-      amountGiven:dc.amount,interest:dc.amount*0.4,amountDue:dc.amount*1.4,
+    // Create loan — loan also carries the series letter
+    var newLoan={id:gLid(),code:c.code,clientId:c.id,sourceAppId:a.id,
+      amountGiven:dc.amount||0,interest:(dc.amount||0)*0.4,amountDue:(dc.amount||0)*1.4,
       dailyPayment:dc.amount*1.4/25,dateGiven:d.date,status:'Active',
-      colItems:c.colItems||'',series:'',dayDates:[],dayPayments:[]};
-    // Generate 25 working day dates from disbursement date
-    var dd=new Date(d.date+'T00:00:00'),dayCount=0,dayDates=[];
+      colItems:c.colItems||'',series:seriesLetter,dayDates:[],dayPayments:[]};
+    // Generate 25 working day dates starting the NEXT working day after disbursement
+    var dd=new Date(d.date+'T00:00:00');
+    dd.setDate(dd.getDate()+1);
+    var dayDates=[];
     while(dayDates.length<25){
       var dow=dd.getDay();
       if(dow!==0&&dow!==6)dayDates.push(dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2));
@@ -2229,10 +2300,10 @@ function approveDisb(id){
     a.status='disbursed';
     created++;
   }
-  logAct('act','Approved disbursement &#8212; '+created+' loans activated');
+  logAct('act','Approved disbursement '+seriesLetter+'-series — '+created+' loans activated');
   save();
   updateBadges();
-  toast('Approved! '+created+' loan'+(created!==1?'s':'')+' activated. Clients & Loans updated.');
+  toast('Approved! '+created+' '+seriesLetter+'-series loan'+(created!==1?'s':'')+' activated.');
   renderDisbursements(document.getElementById('mainct'));
 }
 function rejectDisb(id){var d=findD(id);if(!d)return;d.status='rejected';d.rejectedBy=cu.display;logAct('act','Rejected disbursement');toast('Rejected.');renderDisbursements(document.getElementById('mainct'));}
@@ -2292,7 +2363,32 @@ function renderLoans(mc,filter){
 }
 function issueLoanTo(cid){var c=cid?findC(cid):null;document.getElementById('lclname').value=c?c.name:'';document.getElementById('lbr').value=c?c.branch:'';document.getElementById('la').value='';document.getElementById('ld').value=td_();document.getElementById('lmod').dataset.cid=cid||'';updateCalc();document.getElementById('lmod').classList.add('op');}
 function updateCalc(){var amt=parseFloat(document.getElementById('la').value)||0,int=amt*0.4,tot=amt+int,daily=tot/25;document.getElementById('cvp').textContent=zmw(amt);document.getElementById('cvi').textContent=zmw(int);document.getElementById('cvt').textContent=zmw(tot);document.getElementById('cvd').textContent=zmw(daily);}
-function saveLoan(){var cid=document.getElementById('lmod').dataset.cid,amt=parseFloat(document.getElementById('la').value),dt=document.getElementById('ld').value;if(!amt||amt<=0){toast('Enter loan amount.');return;}var c=cid?findC(cid):null;if(!c){var n=document.getElementById('lclname').value.trim().toLowerCase();for(var i=0;i<clients.length;i++){if(clients[i].name.toLowerCase()===n){c=clients[i];break;}}}if(!c){toast('Client not found.');return;}var int=amt*0.4,tot=amt+int,daily=tot/25;loans.push({id:gLid(),code:c.code||gLid(),clientId:c.id,amountGiven:amt,interest:int,amountDue:tot,dailyPayment:daily,dateGiven:dt,status:'Active',colItems:c.colItems||''});c.collateralLockedDate=dt;logAct('act','Issued loan '+zmw(amt)+' to '+c.name);save();closeModal('lmod');toast('Loan issued!');renderLoans(document.getElementById('mainct'),'');}
+function saveLoan(){
+  var cid=document.getElementById('lmod').dataset.cid;
+  var amt=parseFloat(document.getElementById('la').value);
+  var dt=document.getElementById('ld').value;
+  if(!amt||amt<=0){toast('Enter loan amount.');return;}
+  if(!dt){toast('Enter a loan date.');return;}
+  var c=cid?findC(cid):null;
+  if(!c){var n=document.getElementById('lclname').value.trim().toLowerCase();for(var i=0;i<clients.length;i++){if(clients[i].name.toLowerCase()===n){c=clients[i];break;}}}
+  if(!c){toast('Client not found.');return;}
+  // Block if client already has an active loan
+  for(var i=0;i<loans.length;i++){if(loans[i].clientId===c.id&&loans[i].status==='Active'){toast('This client already has an active loan. Complete or close it first.');return;}}
+  var int=amt*0.4,tot=amt+int,daily=tot/25;
+  // Generate 25 working day payment schedule starting next working day after loan date
+  var dd=new Date(dt+'T00:00:00');
+  dd.setDate(dd.getDate()+1);
+  var dayDates=[];
+  while(dayDates.length<25){
+    var dow=dd.getDay();
+    if(dow!==0&&dow!==6)dayDates.push(dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2));
+    dd.setDate(dd.getDate()+1);
+  }
+  loans.push({id:gLid(),code:c.code||gLid(),clientId:c.id,amountGiven:amt,interest:int,amountDue:tot,dailyPayment:daily,dateGiven:dt,status:'Active',colItems:c.colItems||'',series:c.series||'',dayDates:dayDates,dayPayments:new Array(25).fill(null)});
+  c.collateralLockedDate=dt;
+  logAct('act','Issued loan '+zmw(amt)+' to '+c.name);
+  save();closeModal('lmod');toast('Loan issued!');renderLoans(document.getElementById('mainct'),'');
+}
 function viewLoan(id){
   var l=findL(id);if(!l)return;
   var lc=findC(l.clientId),today=td_();
@@ -2403,7 +2499,7 @@ function viewDisb(id){
   if(canDo('credit_north','credit_south','admin')&&d.status==='pending'){
     h+='<div style="display:flex;gap:10px;margin-bottom:14px">';
     h+='<button class="btn btr" style="flex:1;padding:14px;font-size:15px" onclick="rejectDisb(\''+d.id+'\');renderDisbursements(document.getElementById(\'mainct\'))">&#10007; Reject List</button>';
-    h+='<button class="btn btk" style="flex:1;padding:14px;font-size:15px" onclick="approveDisb(\''+d.id+'\')">&#10003; Approve &amp; Activate Loans</button>';
+    h+='<button class="btn btk" style="flex:1;padding:14px;font-size:15px" onclick="openSeriesPicker(\''+d.id+'\')">&#10003; Approve &amp; Activate Loans</button>';
     h+='</div>';
   }
   if(d.status==='approved'){
@@ -2479,69 +2575,897 @@ function recordPayment(){
   closeModal('pmod');
   viewLoan(cpid);
 }
-function renderCollateral(mc){var list=fBr(clients).filter(function(c){return c.collateralLockedDate;});var h='<div class="cd"><div class="cdh"><span class="cdt">Collateral Registry</span></div><div class="tw"><table><thead><tr><th>Client</th><th>Branch</th><th>Items</th><th>Locked</th><th>Status</th><th>Days</th></tr></thead><tbody>';if(!list.length)h+='<tr><td colspan="6"><div class="es"><div class="ei">&#127968;</div><div class="et">No collateral records</div></div></td></tr>';for(var i=0;i<list.length;i++){var c=list[i],cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':cs.status==='cooling'?'Cooling':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';h+='<tr><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td style="font-size:11px;color:var(--mu)">'+fmtD(c.collateralLockedDate)+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="font-family:monospace;font-size:11px">'+(cs.status==='cooling'?cs.daysLeft+'d':cs.status==='locked'?'Active':'Ready')+'</td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
-function renderReports(mc){mc.innerHTML='<div class="rt"><button class="rtb ac" onclick="swRep(\'daily\',this)">Daily</button><button class="rtb" onclick="swRep(\'weekly\',this)">Weekly</button><button class="rtb" onclick="swRep(\'monthly\',this)">Monthly</button><button class="rtb" onclick="swRep(\'quarterly\',this)">Quarterly</button><button class="rtb" onclick="swRep(\'annual\',this)">Annual</button><button class="rtb" style="border:1.5px solid var(--wn);color:var(--wn)" onclick="swRep(\'lapsed\',this)">Did Not Renew</button></div><div id="rcont"></div>';buildReport('daily');}
-function swRep(type,btn){var bs=document.querySelectorAll('.rtb');for(var i=0;i<bs.length;i++)bs[i].classList.remove('ac');btn.classList.add('ac');if(type==='lapsed')buildLapsedReport();else buildReport(type);}
-function buildLapsedReport(){
-  var today=new Date(td_()),lapsed=[];
-  for(var i=0;i<clients.length;i++){var c=clients[i];if(gBL().indexOf(c.branch)<0)continue;var cLoans=[],activeL=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id){cLoans.push(loans[j]);if(loans[j].status==='Active')activeL=loans[j];}}if(activeL||!cLoans.length)continue;cLoans.sort(function(a,b){return new Date(b.dateGiven)-new Date(a.dateGiven);});var lastLoan=cLoans[0],loanEnd=new Date(lastLoan.dateGiven+'T00:00:00');loanEnd.setDate(loanEnd.getDate()+24);var daysSince=Math.floor((today-loanEnd)/86400000);if(daysSince>=7){var ltp=gTP(lastLoan.id),totalBorrowed=0;for(var j=0;j<cLoans.length;j++)totalBorrowed+=Number(cLoans[j].amountGiven||0);lapsed.push({client:c,lastLoan:lastLoan,daysSince:daysSince,loanCount:cLoans.length,lastAmt:lastLoan.amountGiven,totalBorrowed:totalBorrowed,fullyPaid:ltp>=(lastLoan.amountDue||0),loanEndStr:loanEnd.getFullYear()+'-'+pad(loanEnd.getMonth()+1)+'-'+pad(loanEnd.getDate())});}}
-  lapsed.sort(function(a,b){return b.daysSince-a.daysSince;});
-  var h='<div class="rh" style="background:linear-gradient(135deg,#7d3c00,var(--wn))"><div><div class="rht">Did Not Renew Report</div><div class="rhs">Clients whose loan ended 7+ days ago with no renewal</div></div></div>';
-  h+='<div class="sg"><div class="sc c6"><div class="si">&#9888;</div><div class="sl">Lapsed Clients</div><div class="sv">'+lapsed.length+'</div></div>';
-  var totalBorrowed=0;for(var i=0;i<lapsed.length;i++)totalBorrowed+=lapsed[i].totalBorrowed;
-  var unpaid=0;for(var i=0;i<lapsed.length;i++){if(!lapsed[i].fullyPaid)unpaid++;}
-  h+='<div class="sc c3"><div class="si">&#128176;</div><div class="sl">Previously Borrowed</div><div class="sv" style="font-size:14px">'+zmw(totalBorrowed)+'</div></div><div class="sc c2"><div class="si">&#128680;</div><div class="sl">Have Balance</div><div class="sv">'+unpaid+'</div></div></div>';
-  h+='<div class="cd"><div class="cdh"><span class="cdt">Follow-Up List ('+lapsed.length+')</span></div><div class="tw"><table><thead><tr><th>Client</th><th>Phone</th><th>Branch</th><th>Loans</th><th>Last Amt</th><th>Ended</th><th>Days Since</th><th>Balance</th></tr></thead><tbody>';
-  if(!lapsed.length)h+='<tr><td colspan="8"><div class="es"><div class="ei">&#127881;</div><div class="et">No lapsed clients!</div></div></td></tr>';
-  for(var i=0;i<lapsed.length;i++){var item=lapsed[i],c=item.client,l=item.lastLoan,ltp=gTP(l.id),bal=Math.max(0,(l.amountDue||0)-ltp),isN=NORTH.indexOf(c.branch)>=0,dColor=item.daysSince>30?'var(--r)':item.daysSince>14?'var(--wn)':'var(--ok)';h+='<tr><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td style="font-family:monospace;font-size:11px">'+esc(c.phone)+'</td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="text-align:center">'+item.loanCount+'</td><td style="font-family:monospace;font-size:11px">'+zmw(item.lastAmt)+'</td><td style="font-size:11px;color:var(--mu)">'+fmtD(item.loanEndStr)+'</td><td style="color:'+dColor+';font-weight:700">'+item.daysSince+'d</td><td style="font-family:monospace;font-size:11px;color:'+(bal>0?'var(--r)':'var(--ok)')+'">'+zmw(bal)+'</td></tr>';}
-  h+='</tbody></table></div></div>';document.getElementById('rcont').innerHTML=h;
+function renderDailyPay(mc) {
+  var today = td_();
+  var dow = new Date(today + 'T00:00:00').getDay();
+  var isWeekend = (dow === 0 || dow === 6);
+
+  var h = '<div style="background:linear-gradient(135deg,#1a3a5f,#1a5276);color:#fff;border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h += '<div><div style="font-size:20px;font-weight:800">&#128197; Daily Payments</div>';
+  h += '<div style="font-size:12px;opacity:.8;margin-top:3px">'+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow]+' &nbsp;&#183;&nbsp; '+fmtD(today)+'</div></div>';
+  if(isWeekend) h += '<div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600">&#128308; Weekend — No payments due</div>';
+  h += '</div>';
+
+  // Branch selector
+  var bl = cu.role==='admin' ? ALL_B : cu.region==='NORTH' ? NORTH : SOUTH;
+  h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">';
+  h += '<span style="font-size:12px;color:var(--mu);font-weight:600">Branch:</span>';
+  for(var i=0;i<bl.length;i++) {
+    var isN=NORTH.indexOf(bl[i])>=0;
+    h += '<button class="bc dp-br" style="border-left:3px solid '+(isN?'var(--in)':'var(--ok)')+'" onclick="switchDPBranch(\''+bl[i]+'\',this)">'+bl[i]+'</button>';
+  }
+  h += '</div>';
+
+  // CSV upload card
+  h += '<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">&#128196; Bulk CSV Upload</span></div>';
+  h += '<div style="padding:12px 16px">';
+  h += '<div style="font-size:12px;color:var(--mu);margin-bottom:10px">CSV format: <span style="font-family:monospace;background:var(--s2);padding:2px 6px;border-radius:4px">Name, Code, Amount</span> &nbsp;— date is automatically today</div>';
+  h += '<div class="iz" style="padding:16px"><input type="file" accept=".csv" onchange="handleDailyCSV(this)"><div style="font-size:22px">&#128196;</div><div style="font-size:12px;font-weight:600;margin-top:6px">Drop CSV or tap to browse</div></div>';
+  h += '<div id="dp-csv-prev" style="display:none;margin-top:10px"></div>';
+  h += '</div></div>';
+
+  // Daily payment entry table — default to first branch
+  h += '<div id="dp-table"></div>';
+  h += '</div>';
+  mc.innerHTML = h;
+
+  // Activate first branch button and load table
+  var firstBtn = mc.querySelector('.dp-br');
+  if(firstBtn) { firstBtn.classList.add('ac'); buildDPTable(bl[0]); }
 }
-function buildReport(type){
-  var bl=gBL(),now=new Date(),startDate,label;
-  if(type==='daily'){startDate=td_();label='Today &#8212; '+fmtD(td_());}
-  else if(type==='weekly'){var wd=new Date();wd.setDate(wd.getDate()-4);startDate=wd.getFullYear()+'-'+pad(wd.getMonth()+1)+'-'+pad(wd.getDate());label='This Week';}
-  else if(type==='monthly'){startDate=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-01';label=now.toLocaleString('default',{month:'long',year:'numeric'});}
-  else if(type==='quarterly'){var q=Math.floor(now.getMonth()/3);startDate=now.getFullYear()+'-'+pad(q*3+1)+'-01';label='Q'+(q+1)+' '+now.getFullYear();}
-  else{startDate=now.getFullYear()+'-01-01';label=String(now.getFullYear());}
-  var bdata=[];
-  for(var bi=0;bi<bl.length;bi++){
-    var b=bl[bi],bc=[],bl2=[],al=[],pl=[],bpay=[],expAmt=0,collAmt=0,totColl=0,pen=0,defCount=0,coolCount=0;
-    for(var i=0;i<clients.length;i++){if(clients[i].branch===b){bc.push(clients[i]);var cs=gCS(clients[i].collateralLockedDate,clients[i].id);if(cs.status==='cooling')coolCount++;}}
-    for(var i=0;i<loans.length;i++){
-      var lc2=findC(loans[i].clientId);
-      if(lc2&&lc2.branch===b){
-        bl2.push(loans[i]);
-        var ls2=calcLoanStats(loans[i]);
-        totColl+=ls2.totalPaid;
-        if(loans[i].status==='Active'){
-          al.push(loans[i]);
-          expAmt+=ls2.totalExpected;
-          collAmt+=ls2.totalPaid;
-          pen+=ls2.penalties;
-          totalAdv+=ls2.advances;
-          if(ls2.missedDays>1)defCount++;
+
+function switchDPBranch(branch, btn) {
+  var btns = document.querySelectorAll('.dp-br');
+  for(var i=0;i<btns.length;i++) btns[i].classList.remove('ac');
+  btn.classList.add('ac');
+  buildDPTable(branch);
+}
+
+function buildDPTable(branch) {
+  var today = td_();
+  var el = document.getElementById('dp-table');
+  if(!el) return;
+
+  // Get active loans for this branch
+  var rows = [];
+  for(var i=0;i<loans.length;i++) {
+    var l = loans[i];
+    if(l.status !== 'Active') continue;
+    var c = findC(l.clientId);
+    if(!c || c.branch.toLowerCase().trim() !== branch.toLowerCase().trim()) continue;
+    // Find today's day index
+    var dayIdx = -1;
+    if(l.dayDates) for(var d=0;d<l.dayDates.length;d++) { if(l.dayDates[d]===today){dayIdx=d;break;} }
+    var alreadyPaid = dayIdx>=0 && l.dayPayments && l.dayPayments[dayIdx] ? l.dayPayments[dayIdx] : 0;
+    rows.push({loan:l, client:c, dayIdx:dayIdx, alreadyPaid:alreadyPaid});
+  }
+
+  if(!rows.length) {
+    el.innerHTML = '<div class="cd"><div style="padding:30px;text-align:center"><div style="font-size:36px;margin-bottom:8px">&#128203;</div><div style="font-weight:600;color:var(--mu)">No active loans for '+esc(branch)+'</div></div></div>';
+    return;
+  }
+
+  var paidCount = rows.filter(function(r){return r.alreadyPaid>0;}).length;
+  var h = '<div class="cd"><div class="cdh"><span class="cdt">&#128176; '+esc(branch)+' — '+rows.length+' Active Loans';
+  h += ' <span style="font-size:11px;font-weight:400;color:var(--mu)">('+paidCount+' paid today)</span></span>';
+  h += '<button class="btn btk bts" onclick="saveAllDayPayments(\''+branch+'\')">&#10003; Save All Payments</button></div>';
+  h += '<div style="padding:10px 14px">';
+  h += '<table style="width:100%;border-collapse:collapse">';
+  h += '<thead><tr style="font-size:11px;color:var(--mu);border-bottom:2px solid var(--bd)">';
+  h += '<th style="text-align:left;padding:8px 6px">Client</th>';
+  h += '<th style="text-align:left;padding:8px 6px">Code</th>';
+  h += '<th style="text-align:right;padding:8px 6px">Daily Due</th>';
+  h += '<th style="text-align:right;padding:8px 6px">Balance</th>';
+  h += '<th style="text-align:center;padding:8px 6px">Day</th>';
+  h += '<th style="text-align:right;padding:8px 6px;min-width:130px">Amount Paid Today</th>';
+  h += '<th style="text-align:center;padding:8px 6px">Status</th>';
+  h += '</tr></thead><tbody>';
+
+  for(var i=0;i<rows.length;i++) {
+    var r=rows[i], l=r.loan, c=r.client;
+    var stats=calcLoanStats(l);
+    var dayNum = r.dayIdx>=0 ? r.dayIdx+1 : '—';
+    var hasPaid = r.alreadyPaid>0;
+    var rowBg = hasPaid ? 'background:rgba(39,174,96,.05)' : '';
+    h += '<tr style="border-bottom:1px solid var(--bd);'+rowBg+'">';
+    h += '<td style="padding:8px 6px;font-weight:600;font-size:13px">'+esc(c.name)+'</td>';
+    h += '<td style="padding:8px 6px;font-family:monospace;font-size:11px;color:var(--mu)">'+esc(c.code||'—')+'</td>';
+    h += '<td style="padding:8px 6px;text-align:right;font-family:monospace;font-size:12px">'+zmw(l.dailyPayment)+'</td>';
+    h += '<td style="padding:8px 6px;text-align:right;font-family:monospace;font-size:12px;color:var(--r)">'+zmw(stats.balance)+'</td>';
+    h += '<td style="padding:8px 6px;text-align:center;font-size:11px;color:var(--mu)">'+dayNum+'</td>';
+    h += '<td style="padding:8px 6px;text-align:right">';
+    h += '<input type="number" step="0.01" min="0" data-lid="'+l.id+'" data-dayidx="'+r.dayIdx+'" ';
+    h += 'value="'+(r.alreadyPaid||l.dailyPayment.toFixed(2))+'" ';
+    h += 'style="width:120px;padding:6px 8px;border:1.5px solid '+(hasPaid?'var(--ok)':'var(--bd)')+';border-radius:6px;font-size:13px;font-family:monospace;text-align:right;background:'+(hasPaid?'rgba(39,174,96,.06)':'#fff')+'" ';
+    h += 'class="dp-input" onchange="dpMarkChanged(this)">';
+    h += '</td>';
+    h += '<td style="padding:8px 6px;text-align:center">';
+    if(hasPaid) h += '<span class="bg bgg" style="font-size:9px">Paid</span>';
+    else if(r.dayIdx<0) h += '<span class="bg bgo" style="font-size:9px">No Schedule</span>';
+    else h += '<span class="bg bgr" style="font-size:9px">Unpaid</span>';
+    h += '</td></tr>';
+  }
+  h += '</tbody></table>';
+  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px">';
+  h += '<button class="btn btk" onclick="saveAllDayPayments(\''+branch+'\')" style="padding:12px 28px;font-size:14px;font-weight:700">&#10003; Save All Payments for '+esc(branch)+'</button>';
+  h += '</div></div></div>';
+  el.innerHTML = h;
+}
+
+function dpMarkChanged(input) {
+  input.style.borderColor = 'var(--in)';
+  input.style.background = 'rgba(41,128,185,.05)';
+}
+
+function saveAllDayPayments(branch) {
+  var today = td_();
+  var inputs = document.querySelectorAll('.dp-input');
+  var saved = 0, skipped = 0;
+  for(var i=0;i<inputs.length;i++) {
+    var inp = inputs[i];
+    var lid = inp.dataset.lid;
+    var dayIdx = parseInt(inp.dataset.dayidx);
+    var amt = parseFloat(inp.value) || 0;
+    if(amt <= 0) { skipped++; continue; }
+    var l = findL(lid);
+    if(!l) continue;
+    if(dayIdx >= 0) {
+      if(!l.dayPayments) l.dayPayments = new Array(25).fill(null);
+      while(l.dayPayments.length < 25) l.dayPayments.push(null);
+      l.dayPayments[dayIdx] = amt;
+    } else {
+      // No scheduled day — record in payments array
+      payments.push({id:Date.now()+Math.random()+i, loanId:lid, amount:amt, date:today, notes:'Daily entry', recordedBy:cu.display});
+    }
+    // Auto-complete loan if fully paid
+    var stats = calcLoanStats(l);
+    if(stats.balance <= 0 && stats.futureDays === 0) {
+      l.status = 'Completed';
+      var lc = findC(l.clientId);
+      if(lc) lc.collateralLockedDate = today;
+    }
+    saved++;
+  }
+  logAct('act', 'Daily payments saved for '+branch+': '+saved+' clients');
+  save();
+  toast('&#10003; '+saved+' payment'+(saved!==1?'s':'')+' saved for '+branch+(skipped?' ('+skipped+' skipped)':'')+'!');
+  buildDPTable(branch);
+}
+
+function handleDailyCSV(input) {
+  var file = input.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var today = td_();
+    var rows = parseCSVText(ev.target.result);
+    var matched=0, notFound=[], results=[];
+    for(var i=0;i<rows.length;i++) {
+      var cols = rows[i];
+      if(!cols[0] && !cols[1]) continue;
+      var nameRaw = (cols[0]||'').trim();
+      var codeRaw = (cols[1]||'').trim();
+      var amt = parseFloat((cols[2]||'').replace(/[^0-9.]/g,'')) || 0;
+      if(!amt) continue;
+
+      // Match by code first, then by name
+      var loan = null;
+      for(var j=0;j<loans.length;j++) {
+        if(loans[j].status!=='Active') continue;
+        var c2 = findC(loans[j].clientId);
+        if(!c2) continue;
+        if(codeRaw && c2.code && c2.code.toLowerCase()===codeRaw.toLowerCase()) { loan=loans[j]; break; }
+      }
+      if(!loan && nameRaw) {
+        for(var j=0;j<loans.length;j++) {
+          if(loans[j].status!=='Active') continue;
+          var c2 = findC(loans[j].clientId);
+          if(c2 && c2.name.toLowerCase()===nameRaw.toLowerCase()) { loan=loans[j]; break; }
         }
-        if(loans[i].dateGiven>=startDate)pl.push(loans[i]);
+      }
+
+      if(!loan) { notFound.push(nameRaw||codeRaw); continue; }
+
+      var dayIdx=-1;
+      if(loan.dayDates) for(var d=0;d<loan.dayDates.length;d++) { if(loan.dayDates[d]===today){dayIdx=d;break;} }
+      if(dayIdx>=0) {
+        if(!loan.dayPayments) loan.dayPayments=new Array(25).fill(null);
+        while(loan.dayPayments.length<25) loan.dayPayments.push(null);
+        loan.dayPayments[dayIdx]=amt;
+      } else {
+        payments.push({id:Date.now()+Math.random()+i, loanId:loan.id, amount:amt, date:today, notes:'CSV Import', recordedBy:cu.display});
+      }
+      var stats=calcLoanStats(loan);
+      if(stats.balance<=0&&stats.futureDays===0){loan.status='Completed';var lc2=findC(loan.clientId);if(lc2)lc2.collateralLockedDate=today;}
+      matched++;
+      var c3=findC(loan.clientId);
+      results.push({name:c3?c3.name:nameRaw, code:codeRaw, amt:amt});
+    }
+
+    if(!matched && !notFound.length) { toast('No valid rows found in CSV.'); return; }
+
+    logAct('act','Daily CSV import: '+matched+' payments recorded');
+    save();
+
+    // Show preview
+    var prev = document.getElementById('dp-csv-prev');
+    if(prev) {
+      var ph='<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px">';
+      ph+='<div style="font-weight:700;color:var(--ok);margin-bottom:8px">&#10003; '+matched+' payment'+(matched!==1?'s':'')+' recorded from CSV</div>';
+      if(results.length) {
+        ph+='<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:3px 6px;color:var(--mu)">Client</th><th style="text-align:left;padding:3px 6px;color:var(--mu)">Code</th><th style="text-align:right;padding:3px 6px;color:var(--mu)">Amount</th></tr></thead><tbody>';
+        for(var i=0;i<results.length;i++) ph+='<tr><td style="padding:3px 6px">'+esc(results[i].name)+'</td><td style="padding:3px 6px;font-family:monospace">'+esc(results[i].code)+'</td><td style="padding:3px 6px;text-align:right;font-family:monospace">'+zmw(results[i].amt)+'</td></tr>';
+        ph+='</tbody></table>';
+      }
+      if(notFound.length) ph+='<div style="color:var(--r);font-size:11px;margin-top:8px">&#9888; Not found: '+notFound.map(function(n){return esc(n);}).join(', ')+'</div>';
+      ph+='</div>';
+      prev.innerHTML=ph; prev.style.display='block';
+    }
+    toast('&#10003; '+matched+' payments saved from CSV!');
+    // Refresh table if a branch is selected
+    var activeBranch = document.querySelector('.dp-br.ac');
+    if(activeBranch) buildDPTable(activeBranch.textContent.trim());
+  };
+  reader.readAsText(file);
+}
+
+function renderCollateral(mc){var list=fBr(clients).filter(function(c){return c.collateralLockedDate;});var h='<div class="cd"><div class="cdh"><span class="cdt">Collateral Registry</span></div><div class="tw"><table><thead><tr><th>Client</th><th>Branch</th><th>Items</th><th>Locked</th><th>Status</th><th>Days</th></tr></thead><tbody>';if(!list.length)h+='<tr><td colspan="6"><div class="es"><div class="ei">&#127968;</div><div class="et">No collateral records</div></div></td></tr>';for(var i=0;i<list.length;i++){var c=list[i],cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':cs.status==='cooling'?'Cooling':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';h+='<tr><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td style="font-size:11px;color:var(--mu)">'+fmtD(c.collateralLockedDate)+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="font-family:monospace;font-size:11px">'+(cs.status==='cooling'?cs.daysLeft+'d':cs.status==='locked'?'Active':'Ready')+'</td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
+
+// ── REPORTS ────────────────────────────────────────────────────────────────
+
+function renderReports(mc){
+  mc.innerHTML='<div class="rt">'
+    +'<button class="rtb ac" onclick="swRep(\'daily\',this)">Daily</button>'
+    +'<button class="rtb" onclick="swRep(\'weekly\',this)">Weekly</button>'
+    +'<button class="rtb" onclick="swRep(\'monthly\',this)">Monthly</button>'
+    +'<button class="rtb" onclick="swRep(\'quarterly\',this)">Quarterly</button>'
+    +'<button class="rtb" style="border:1.5px solid var(--wn);color:var(--wn)" onclick="swRep(\'lapsed\',this)">Did Not Renew</button>'
+    +'</div><div id="rcont"></div>';
+  buildDailyReport();
+}
+
+function swRep(type,btn){
+  var bs=document.querySelectorAll('.rtb');
+  for(var i=0;i<bs.length;i++)bs[i].classList.remove('ac');
+  btn.classList.add('ac');
+  if(type==='daily')buildDailyReport();
+  else if(type==='weekly')buildWeeklyReport();
+  else if(type==='monthly')buildMonthlyReport();
+  else if(type==='quarterly')buildQuarterlyReport();
+  else buildLapsedReport();
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+
+function rptBranches(){
+  // Return branches that have at least one loan, in order
+  var order=['Mufulira','Chililabombwe','Chingola','Nakadoli','Lusaka','Ndola','Luanshya','Kalulushi'];
+  var active={};
+  for(var i=0;i<loans.length;i++){
+    var c=findC(loans[i].clientId);
+    if(c)active[c.branch]=true;
+  }
+  var out=[];
+  for(var i=0;i<order.length;i++)if(active[order[i]])out.push(order[i]);
+  return out.length?out:order.slice(0,4);
+}
+
+// Working-day dates Mon-Fri for a week starting Monday
+function weekDates(mondayStr){
+  var dates=[],d=new Date(mondayStr+'T00:00:00');
+  while(dates.length<5){
+    var dow=d.getDay();
+    if(dow!==0&&dow!==6)dates.push(d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()));
+    d.setDate(d.getDate()+1);
+  }
+  return dates;
+}
+
+// Monday of the week containing dateStr
+function getMondayOf(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  var dow=d.getDay();
+  var diff=dow===0?-6:1-dow;
+  d.setDate(d.getDate()+diff);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+// Compute stats for one branch on one date
+function rptDayStats(branch,dateStr){
+  var today=td_();
+  var exp=0,coll=0,adv=0,recovery=0,createdPen=0,collPen=0,disbAmt=0;
+  var weekStart=getMondayOf(dateStr);
+
+  for(var i=0;i<loans.length;i++){
+    var loan=loans[i];
+    var c=findC(loan.clientId);
+    if(!c||c.branch!==branch)continue;
+
+    // Disbursed on this date
+    if(loan.dateGiven===dateStr)disbAmt+=loan.amountGiven||0;
+
+    if(!loan.dayDates)continue;
+    var di=loan.dayDates.indexOf(dateStr);
+    if(di<0)continue;
+
+    var due=loan.dailyPayment||0;
+    var paid=(loan.dayPayments&&loan.dayPayments[di]!=null)?(loan.dayPayments[di]||0):0;
+
+    exp+=due;
+    if(paid>due){coll+=due;adv+=paid-due;}
+    else coll+=paid;
+
+    // Penalty: missed days create 10 ZMW penalty each
+    if(paid===0&&dateStr<today){
+      createdPen+=10;
+    }
+
+    // Recovery: payment made on a day where the scheduled date is before the current week
+    if(paid>0&&dateStr<weekStart)recovery+=Math.min(paid,due);
+  }
+  var balance=Math.max(0,exp-coll);
+  return{exp:exp,coll:coll,balance:balance,adv:adv,recovery:recovery,
+    createdPen:createdPen,collPen:collPen,disbAmt:disbAmt,
+    totalColl:coll+adv+recovery+collPen};
+}
+
+// Cumulative balance = total outstanding across all active loans for branch
+function rptCumBalance(branch){
+  var total=0;
+  for(var i=0;i<loans.length;i++){
+    var c=findC(loans[i].clientId);
+    if(!c||c.branch!==branch)continue;
+    if(loans[i].status!=='Active')continue;
+    total+=Math.max(0,(loans[i].amountDue||0)-gTP(loans[i].id));
+  }
+  return total;
+}
+
+// Cumulative penalty = sum of (missed days × 10) for all loans in branch
+function rptCumPenalty(branch){
+  var today=td_(),pen=0;
+  for(var i=0;i<loans.length;i++){
+    var c=findC(loans[i].clientId);
+    if(!c||c.branch!==branch)continue;
+    var loan=loans[i];
+    if(!loan.dayDates)continue;
+    for(var d=0;d<loan.dayDates.length;d++){
+      if(loan.dayDates[d]<today){
+        var paid=(loan.dayPayments&&loan.dayPayments[d])?loan.dayPayments[d]:0;
+        if(paid===0)pen+=10;
       }
     }
-    for(var i=0;i<payments.length;i++){var pl2=findL(payments[i].loanId);var lc=pl2&&findC(pl2.clientId);if(lc&&lc.branch===b&&payments[i].date>=startDate)collAmt+=Number(payments[i].amount);}
-    var dispersed=0,profit=0,totalExp=0,totalAdv=0;for(var i=0;i<pl.length;i++){dispersed+=Number(pl[i].amountGiven||0);profit+=Number(pl[i].amountGiven||0)*0.4;totalExp+=Number(pl[i].amountDue||0);}
-    bdata.push({branch:b,clients:bc.length,active:al.length,dispersed:dispersed,profit:profit,totalExp:totalExp,expAmt:expAmt,collAmt:collAmt,balance:Math.max(0,expAmt-collAmt),pen:pen,totColl:totColl,defCount:defCount,coolCount:coolCount});
   }
-  function sum(k){var t=0;for(var i=0;i<bdata.length;i++)t+=bdata[i][k];return t;}
-  var maxC=1;for(var i=0;i<bdata.length;i++){if(bdata[i].collAmt>maxC)maxC=bdata[i].collAmt;}
-  var h='<div class="rh"><div><div class="rht">'+type.charAt(0).toUpperCase()+type.slice(1)+' Report &#8212; '+label+'</div><div class="rhs">'+(abr==='ALL'?'All Branches':'Branch: '+abr)+' &#183; '+fmtD(td_())+'</div></div><button class="btn btg bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">Print</button></div>';
-  h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">Branch Summary</span></div><div class="tw"><table class="drt"><thead><tr><th>Metric</th>';
-  for(var i=0;i<bdata.length;i++)h+='<th>'+bdata[i].branch.toUpperCase()+'</th>';h+='<th>TOTAL</th></tr></thead><tbody>';
-  var rows=[{l:'Expected Today',k:'expAmt',c:''},{l:'Collected Today',k:'collAmt',c:'var(--ok)'},{l:'Balance',k:'balance',c:'var(--r)'},{l:'Advances',k:'totalAdv',c:'var(--gd)'},{l:'Penalties (2%)',k:'pen',c:'var(--wn)'},{l:'Total Collected',k:'totColl',c:'var(--ok)'},{l:'Active Loans',k:'active',c:'',n:true},{l:'Total Clients',k:'clients',c:'',n:true},{l:'Missed Payments',k:'defCount',c:'var(--r)',n:true}];
-  for(var ri=0;ri<rows.length;ri++){var row=rows[ri];h+='<tr><td>'+row.l+'</td>';for(var i=0;i<bdata.length;i++)h+='<td style="font-family:monospace;'+(row.c?'color:'+row.c:'')+'">'+(row.n?bdata[i][row.k]:zmw(bdata[i][row.k]))+'</td>';h+='<td style="font-weight:700;'+(row.c?'color:'+row.c:'')+'">'+(row.n?sum(row.k):zmw(sum(row.k)))+'</td></tr>';}
-  if(type!=='daily'){var srows=[{l:'Dispersed ('+label+')',k:'dispersed'},{l:'Profit 40% ('+label+')',k:'profit'},{l:'Total Expected ('+label+')',k:'totalExp'}];for(var ri=0;ri<srows.length;ri++){h+='<tr class="sr"><td>'+srows[ri].l+'</td>';for(var i=0;i<bdata.length;i++)h+='<td>'+zmw(bdata[i][srows[ri].k])+'</td>';h+='<td>'+zmw(sum(srows[ri].k))+'</td></tr>';}}
-  h+='</tbody></table></div></div>';
-  h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">Branch Performance</span></div><div class="cdb">';
-  var sorted=bdata.slice().sort(function(a,b){return b.collAmt-a.collAmt;});
-  for(var i=0;i<sorted.length;i++){var b=sorted[i],isN=NORTH.indexOf(b.branch)>=0;h+='<div class="bbc"><div class="bbcl"><span>'+b.branch+' <span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+(isN?'N':'S')+'</span></span><span style="font-family:monospace;font-size:11px">'+zmw(b.collAmt)+' &#183; '+b.active+' active</span></div><div class="bbct"><div class="bbcf" style="width:'+Math.round(b.collAmt/maxC*100)+'%"></div></div></div>';}
-  h+='</div></div>';document.getElementById('rcont').innerHTML=h;
+  return pen;
 }
+
+// Cumulative advance = total advances not yet "used up" by future scheduled days
+function rptCumAdvance(branch){
+  var adv=0;
+  for(var i=0;i<loans.length;i++){
+    var c=findC(loans[i].clientId);
+    if(!c||c.branch!==branch)continue;
+    var loan=loans[i];
+    if(!loan.dayDates)continue;
+    var totalPaid=0,totalDue=0;
+    for(var d=0;d<loan.dayDates.length;d++){
+      totalDue+=(loan.dailyPayment||0);
+      totalPaid+=(loan.dayPayments&&loan.dayPayments[d])?loan.dayPayments[d]:0;
+    }
+    if(totalPaid>totalDue)adv+=(totalPaid-totalDue);
+  }
+  return adv;
+}
+
+// Dispersed in a date range for a branch
+function rptDispersd(branch,from,to){
+  var amt=0;
+  for(var i=0;i<loans.length;i++){
+    var c=findC(loans[i].clientId);
+    if(!c||c.branch!==branch)continue;
+    if(loans[i].dateGiven>=from&&loans[i].dateGiven<=to)amt+=loans[i].amountGiven||0;
+  }
+  return amt;
+}
+
+// Collected (excluding advance) in a date range for a branch
+function rptCollected(branch,from,to){
+  var coll=0,adv=0,recovery=0;
+  var weekStart=getMondayOf(from);
+  for(var i=0;i<loans.length;i++){
+    var c=findC(loans[i].clientId);
+    if(!c||c.branch!==branch)continue;
+    var loan=loans[i];
+    if(!loan.dayDates)continue;
+    for(var d=0;d<loan.dayDates.length;d++){
+      var dt=loan.dayDates[d];
+      if(dt<from||dt>to)continue;
+      var due=loan.dailyPayment||0;
+      var paid=(loan.dayPayments&&loan.dayPayments[d])?loan.dayPayments[d]:0;
+      if(paid>due){coll+=due;adv+=paid-due;}
+      else coll+=paid;
+      if(paid>0&&dt<weekStart)recovery+=Math.min(paid,due);
+    }
+  }
+  return{coll:coll,adv:adv,recovery:recovery,total:coll+adv+recovery};
+}
+
+// ── TABLE BUILDER ──────────────────────────────────────────────────────────
+
+function rptTable(branches,rows){
+  // rows = [{label, vals:[per-branch], cls, bold}]
+  var h='<div class="tw" style="overflow-x:auto"><table class="drt" style="font-size:11px">';
+  h+='<thead><tr><th style="min-width:170px">METRIC</th>';
+  for(var i=0;i<branches.length;i++)h+='<th>'+branches[i].toUpperCase().substring(0,7)+'</th>';
+  h+='<th>SUMMARY</th></tr></thead><tbody>';
+  for(var ri=0;ri<rows.length;ri++){
+    var r=rows[ri];
+    if(r.divider){h+='<tr><td colspan="'+(branches.length+2)+'" style="background:rgba(139,90,43,.08);height:3px;padding:0"></td></tr>';continue;}
+    if(r.heading){h+='<tr><td colspan="'+(branches.length+2)+'" style="background:rgba(139,90,43,.06);font-size:10px;font-weight:700;color:var(--r2);letter-spacing:.5px;padding:5px 8px">'+r.label+'</td></tr>';continue;}
+    var sum=0;for(var i=0;i<r.vals.length;i++)sum+=r.vals[i]||0;
+    h+='<tr'+(r.bold?' style="font-weight:700;background:rgba(139,90,43,.04)"':'')+'>';
+    h+='<td style="color:var(--mu);font-size:10px">'+r.label+'</td>';
+    for(var i=0;i<r.vals.length;i++){
+      var v=r.vals[i]||0;
+      var style='font-family:monospace;'+(r.cls?'color:'+r.cls+';':'');
+      h+='<td style="'+style+'">'+(r.count?v:zmw(v))+'</td>';
+    }
+    h+='<td style="font-weight:700;font-family:monospace;'+(r.cls?'color:'+r.cls+';':'')+(r.bold?'border-left:2px solid var(--r2)':'')+'">'+( r.count?sum:zmw(sum))+'</td>';
+    h+='</tr>';
+  }
+  h+='</tbody></table></div>';
+  return h;
+}
+
+// ── DAILY REPORT ───────────────────────────────────────────────────────────
+
+function buildDailyReport(){
+  var dateVal=document.getElementById('rpt-date-inp')?document.getElementById('rpt-date-inp').value:td_();
+  if(!dateVal)dateVal=td_();
+  var branches=rptBranches();
+  var dayName=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var d=new Date(dateVal+'T00:00:00');
+  var label=dayName[d.getDay()]+' : '+dateVal.split('-').reverse().join('/');
+
+  // Compute per-branch stats
+  var stats={};
+  for(var i=0;i<branches.length;i++){
+    var b=branches[i];
+    var s=rptDayStats(b,dateVal);
+    s.cumBal=rptCumBalance(b);
+    s.cumAdv=rptCumAdvance(b);
+    s.cumPen=rptCumPenalty(b);
+    stats[b]=s;
+  }
+
+  function bv(key){return branches.map(function(b){return stats[b][key]||0;});}
+
+  var rows=[
+    {label:'EXPECTED AMOUNT',    vals:bv('exp'),       cls:''},
+    {label:'COLLECTED AMOUNT',   vals:bv('coll'),      cls:'var(--ok)'},
+    {label:'BALANCE',            vals:bv('balance'),   cls:'var(--r)'},
+    {divider:true},
+    {label:'ADVANCE',            vals:bv('adv'),       cls:'var(--gd)'},
+    {label:'CUMULATIVE ADVANCE', vals:branches.map(function(b){return stats[b].cumAdv;}), cls:''},
+    {divider:true},
+    {label:'CREATED PENALTY',    vals:bv('createdPen'),cls:'var(--wn)'},
+    {label:'COLLECTED PENALTY',  vals:bv('collPen'),   cls:'var(--ok)'},
+    {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}), cls:'var(--wn)'},
+    {divider:true},
+    {label:'TOTAL RECOVERY',     vals:bv('recovery'),  cls:'var(--in)'},
+    {divider:true},
+    {label:'TOTAL COLLECTED',    vals:bv('totalColl'), cls:'var(--ok)', bold:true},
+    {label:'CUMULATIVE BALANCE', vals:branches.map(function(b){return stats[b].cumBal;}), cls:'var(--r)', bold:true},
+    {divider:true},
+    {label:'BALANCE IN COLLATERAL', vals:branches.map(function(){return 0;}), cls:''},
+    {label:'FOAM MONEY',         vals:branches.map(function(){return 0;}), cls:''},
+    {label:'EXPENSE',            vals:branches.map(function(){return 0;}), cls:'var(--r)'},
+  ];
+
+  var h='<div class="rh" style="margin-bottom:14px"><div>';
+  h+='<div class="rht">Daily Report</div>';
+  h+='<div class="rhs">'+label+'</div></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<input type="date" id="rpt-date-inp" value="'+dateVal+'" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:12px" onchange="buildDailyReport()">';
+  h+='<button class="btn bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">&#128424; Print</button>';
+  h+='</div></div>';
+
+  h+='<div class="cd" style="margin-bottom:14px">';
+  h+='<div class="cdh"><span class="cdt">'+label+'</span></div>';
+  h+=rptTable(branches,rows);
+  h+='</div>';
+
+  // Mini collection progress bars
+  h+='<div class="cd"><div class="cdh"><span class="cdt">Collection Rate by Branch</span></div><div class="cdb">';
+  for(var i=0;i<branches.length;i++){
+    var b=branches[i],s=stats[b];
+    var pct=s.exp>0?Math.min(100,Math.round(s.coll/s.exp*100)):0;
+    var isN=NORTH.indexOf(b)>=0;
+    h+='<div class="bbc"><div class="bbcl"><span>'+b+' <span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+(isN?'N':'S')+'</span></span>';
+    h+='<span style="font-family:monospace;font-size:11px">'+zmw(s.coll)+' / '+zmw(s.exp)+' ('+pct+'%)</span></div>';
+    h+='<div class="bbct"><div class="bbcf" style="width:'+pct+'%;background:'+(pct>=90?'var(--ok)':pct>=70?'var(--gd)':'var(--r)')+'"></div></div></div>';
+  }
+  h+='</div></div>';
+
+  document.getElementById('rcont').innerHTML=h;
+}
+
+// ── WEEKLY REPORT ──────────────────────────────────────────────────────────
+
+function buildWeeklyReport(){
+  var weekSel=document.getElementById('rpt-week-inp')?document.getElementById('rpt-week-inp').value:'';
+  var today=td_();
+  var monday=weekSel?weekSel:getMondayOf(today);
+  var dates=weekDates(monday);
+  var branches=rptBranches();
+  var dayName=['Mon','Tue','Wed','Thu','Fri'];
+
+  var h='<div class="rh" style="margin-bottom:14px"><div>';
+  h+='<div class="rht">Weekly Report</div>';
+  h+='<div class="rhs">Week of '+fmtD(monday)+'</div></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<label style="color:rgba(255,255,255,.8);font-size:11px">Week (Monday):</label>';
+  h+='<input type="date" id="rpt-week-inp" value="'+monday+'" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:12px" onchange="buildWeeklyReport()">';
+  h+='<button class="btn bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">&#128424; Print</button>';
+  h+='</div></div>';
+
+  // Daily blocks for each day
+  for(var di=0;di<dates.length;di++){
+    var dateStr=dates[di];
+    if(dateStr>today)continue; // skip future days
+    var stats={};
+    for(var bi=0;bi<branches.length;bi++){
+      var b=branches[bi];
+      var s=rptDayStats(b,dateStr);
+      s.cumBal=rptCumBalance(b);
+      s.cumAdv=rptCumAdvance(b);
+      s.cumPen=rptCumPenalty(b);
+      stats[b]=s;
+    }
+    function bvDay(key,st){return branches.map(function(b){return st[b][key]||0;});}
+    var dayRows=[
+      {label:'EXPECTED AMOUNT',    vals:branches.map(function(b){return stats[b].exp;}),     cls:''},
+      {label:'COLLECTED AMOUNT',   vals:branches.map(function(b){return stats[b].coll;}),    cls:'var(--ok)'},
+      {label:'BALANCE',            vals:branches.map(function(b){return stats[b].balance;}), cls:'var(--r)'},
+      {label:'ADVANCE',            vals:branches.map(function(b){return stats[b].adv;}),     cls:'var(--gd)'},
+      {label:'CREATED PENALTY',    vals:branches.map(function(b){return stats[b].createdPen;}), cls:'var(--wn)'},
+      {label:'COLLECTED PENALTY',  vals:branches.map(function(b){return stats[b].collPen;}), cls:''},
+      {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}),  cls:'var(--wn)'},
+      {label:'TOTAL RECOVERY',     vals:branches.map(function(b){return stats[b].recovery;}),cls:'var(--in)'},
+      {label:'TOTAL COLLECTED',    vals:branches.map(function(b){return stats[b].totalColl;}),cls:'var(--ok)',bold:true},
+      {label:'CUMULATIVE BALANCE', vals:branches.map(function(b){return stats[b].cumBal;}),  cls:'var(--r)',bold:true},
+      {label:'FOAM MONEY',         vals:branches.map(function(){return 0;}), cls:''},
+      {label:'EXPENSE',            vals:branches.map(function(){return 0;}), cls:'var(--r)'},
+    ];
+    var dobj=new Date(dateStr+'T00:00:00');
+    var dnames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    h+='<div class="cd" style="margin-bottom:10px">';
+    h+='<div class="cdh"><span class="cdt">'+dnames[dobj.getDay()]+' : '+dateStr.split('-').reverse().join('/')+'</span></div>';
+    h+=rptTable(branches,dayRows);
+    h+='</div>';
+  }
+
+  // Weekly summary
+  var wStats={};
+  for(var bi=0;bi<branches.length;bi++){
+    var b=branches[bi];
+    var wDisp=rptDispersd(b,monday,dates[dates.length-1]);
+    var wColl=rptCollected(b,monday,dates[dates.length-1]);
+    var wExp=0,wCreatedPen=0,wCollPen=0;
+    for(var di=0;di<dates.length;di++){
+      if(dates[di]>today)continue;
+      var ds=rptDayStats(b,dates[di]);
+      wExp+=ds.exp;
+      wCreatedPen+=ds.createdPen;
+      wCollPen+=ds.collPen;
+    }
+    wStats[b]={
+      disp:wDisp, profit:wDisp*0.4, totalExp:wDisp*1.4,
+      weeklyExp:wExp, coll:wColl.coll, adv:wColl.adv, recovery:wColl.recovery,
+      totalColl:wColl.total,
+      balance:Math.max(0,wExp-wColl.coll),
+      createdPen:wCreatedPen, collPen:wCollPen,
+      cumBal:rptCumBalance(b), cumAdv:rptCumAdvance(b), cumPen:rptCumPenalty(b)
+    };
+  }
+
+  var wRows=[
+    {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return wStats[b].disp;}),      cls:'var(--in)'},
+    {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return wStats[b].profit;}),    cls:''},
+    {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return wStats[b].totalExp;}),  cls:'', bold:true},
+    {divider:true},
+    {label:'WEEKLY EXPECTED',      vals:branches.map(function(b){return wStats[b].weeklyExp;}), cls:''},
+    {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return wStats[b].coll;}),      cls:'var(--ok)'},
+    {label:'BALANCE CREATED',      vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
+    {divider:true},
+    {label:'ADVANCE',              vals:branches.map(function(b){return wStats[b].adv;}),       cls:'var(--gd)'},
+    {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return wStats[b].cumAdv;}),    cls:''},
+    {divider:true},
+    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return wStats[b].collPen;}),   cls:'var(--ok)'},
+    {label:'CREATED PENALTY',      vals:branches.map(function(b){return wStats[b].createdPen;}),cls:'var(--wn)'},
+    {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return wStats[b].cumPen;}),    cls:'var(--wn)'},
+    {divider:true},
+    {label:'RECOVERY THIS WEEK',   vals:branches.map(function(b){return wStats[b].recovery;}),  cls:'var(--in)'},
+    {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return wStats[b].recovery;}),  cls:'var(--in)'},
+    {divider:true},
+    {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return wStats[b].totalColl;}), cls:'var(--ok)', bold:true},
+    {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
+    {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return wStats[b].cumBal;}),    cls:'var(--r)', bold:true},
+    {divider:true},
+    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}), cls:''},
+    {label:'EXPENSES',             vals:branches.map(function(){return 0;}), cls:'var(--r)'},
+  ];
+
+  h+='<div class="cd" style="margin-bottom:14px;border:2px solid var(--r2)">';
+  h+='<div class="cdh" style="background:linear-gradient(135deg,var(--r2),var(--r))"><span class="cdt" style="color:#fff">WEEKLY REPORT — Week of '+fmtD(monday)+'</span></div>';
+  h+=rptTable(branches,wRows);
+  h+='</div>';
+
+  // Weekly summary box
+  function wSum(key){var t=0;for(var i=0;i<branches.length;i++)t+=wStats[branches[i]][key]||0;return t;}
+  h+='<div class="cd"><div class="cdh"><span class="cdt">WEEKLY SUMMARY</span></div><div class="cdb">';
+  h+='<div class="sg">';
+  h+='<div class="sc c2"><div class="si">&#128176;</div><div class="sl">Dispersed</div><div class="sv" style="font-size:13px">'+zmw(wSum('disp'))+'</div></div>';
+  h+='<div class="sc c1"><div class="si">&#128200;</div><div class="sl">Expected Profit</div><div class="sv" style="font-size:13px">'+zmw(wSum('profit'))+'</div></div>';
+  h+='<div class="sc c3"><div class="si">&#9989;</div><div class="sl">Total Collected</div><div class="sv" style="font-size:13px">'+zmw(wSum('totalColl'))+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#9888;</div><div class="sl">Balance Outstanding</div><div class="sv" style="font-size:13px;color:var(--r)">'+zmw(wSum('cumBal'))+'</div></div>';
+  h+='</div></div></div>';
+
+  document.getElementById('rcont').innerHTML=h;
+}
+
+// ── MONTHLY REPORT ─────────────────────────────────────────────────────────
+
+function buildMonthlyReport(){
+  var monthSel=document.getElementById('rpt-month-inp')?document.getElementById('rpt-month-inp').value:'';
+  var today=td_();
+  if(!monthSel)monthSel=today.substring(0,7);
+  var yr=parseInt(monthSel.split('-')[0]),mn=parseInt(monthSel.split('-')[1])-1;
+  var branches=rptBranches();
+
+  // Find all Mondays in this month
+  var mondays=[],d=new Date(yr,mn,1);
+  // Go to first Monday of or after month start
+  while(d.getDay()!==1)d.setDate(d.getDate()+1);
+  while(d.getMonth()===mn||(d.getMonth()===mn+1&&d.getDate()<=7)){
+    // Include if Monday is in the month or week overlaps the month
+    var mondayStr=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    var wdates=weekDates(mondayStr);
+    var hasInMonth=false;
+    for(var i=0;i<wdates.length;i++){
+      var wd=new Date(wdates[i]+'T00:00:00');
+      if(wd.getMonth()===mn)hasInMonth=true;
+    }
+    if(hasInMonth)mondays.push(mondayStr);
+    d.setDate(d.getDate()+7);
+    if(d.getMonth()>mn+1)break;
+  }
+
+  var h='<div class="rh" style="margin-bottom:14px"><div>';
+  h+='<div class="rht">Monthly Report</div>';
+  h+='<div class="rhs">'+new Date(yr,mn,1).toLocaleString('default',{month:'long',year:'numeric'})+'</div></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<input type="month" id="rpt-month-inp" value="'+monthSel+'" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:12px" onchange="buildMonthlyReport()">';
+  h+='<button class="btn bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">&#128424; Print</button>';
+  h+='</div></div>';
+
+  var monthTotals={};
+  for(var bi=0;bi<branches.length;bi++){
+    monthTotals[branches[bi]]={disp:0,profit:0,totalExp:0,weeklyExp:0,coll:0,balance:0,adv:0,recovery:0,totalColl:0,createdPen:0,collPen:0};
+  }
+
+  for(var wi=0;wi<mondays.length;wi++){
+    var monday=mondays[wi];
+    var wdates=weekDates(monday);
+    // Clip to month
+    var wFrom=wdates[0],wTo=wdates[wdates.length-1];
+    var wStats={};
+
+    for(var bi=0;bi<branches.length;bi++){
+      var b=branches[bi];
+      var wDisp=rptDispersd(b,wFrom,wTo);
+      var wColl=rptCollected(b,wFrom,wTo);
+      var wExp=0,wCreatedPen=0,wCollPen=0;
+      for(var di2=0;di2<wdates.length;di2++){
+        if(wdates[di2]>today)continue;
+        var ds=rptDayStats(b,wdates[di2]);
+        wExp+=ds.exp;wCreatedPen+=ds.createdPen;wCollPen+=ds.collPen;
+      }
+      wStats[b]={
+        disp:wDisp,profit:wDisp*0.4,totalExp:wDisp*1.4,
+        weeklyExp:wExp,coll:wColl.coll,adv:wColl.adv,recovery:wColl.recovery,
+        totalColl:wColl.total,balance:Math.max(0,wExp-wColl.coll),
+        createdPen:wCreatedPen,collPen:wCollPen,
+        cumBal:rptCumBalance(b),cumAdv:rptCumAdvance(b),cumPen:rptCumPenalty(b)
+      };
+      // Accumulate month totals
+      var mt=monthTotals[b];
+      mt.disp+=wDisp;mt.profit+=wDisp*0.4;mt.weeklyExp+=wExp;
+      mt.coll+=wColl.coll;mt.adv+=wColl.adv;mt.recovery+=wColl.recovery;
+      mt.totalColl+=wColl.total;mt.balance+=Math.max(0,wExp-wColl.coll);
+      mt.createdPen+=wCreatedPen;mt.collPen+=wCollPen;
+    }
+
+    var wRows=[
+      {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return wStats[b].disp;}),      cls:'var(--in)'},
+      {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return wStats[b].profit;}),    cls:''},
+      {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return wStats[b].totalExp;}),  cls:'',bold:true},
+      {label:'WEEKLY EXPECTED',      vals:branches.map(function(b){return wStats[b].weeklyExp;}), cls:''},
+      {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return wStats[b].coll;}),      cls:'var(--ok)'},
+      {label:'BALANCE CREATED',      vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
+      {label:'ADVANCE',              vals:branches.map(function(b){return wStats[b].adv;}),       cls:'var(--gd)'},
+      {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return wStats[b].cumAdv;}),    cls:''},
+      {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return wStats[b].collPen;}),   cls:'var(--ok)'},
+      {label:'CREATED PENALTY',      vals:branches.map(function(b){return wStats[b].createdPen;}),cls:'var(--wn)'},
+      {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return wStats[b].cumPen;}),    cls:'var(--wn)'},
+      {label:'RECOVERY THIS WEEK',   vals:branches.map(function(b){return wStats[b].recovery;}),  cls:'var(--in)'},
+      {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return wStats[b].recovery;}),  cls:'var(--in)'},
+      {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return wStats[b].totalColl;}), cls:'var(--ok)',bold:true},
+      {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return wStats[b].balance;}),   cls:'var(--r)'},
+      {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return wStats[b].cumBal;}),    cls:'var(--r)',bold:true},
+      {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
+      {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+    ];
+
+    h+='<div class="cd" style="margin-bottom:10px">';
+    h+='<div class="cdh"><span class="cdt">Weekly Report '+( wi+1)+' — Week of '+fmtD(monday)+'</span></div>';
+    h+=rptTable(branches,wRows);
+    h+='</div>';
+  }
+
+  // Monthly totals
+  var mRows=[
+    {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return monthTotals[b].disp;}),      cls:'var(--in)'},
+    {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return monthTotals[b].profit;}),    cls:''},
+    {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return monthTotals[b].disp*1.4;}),  cls:'',bold:true},
+    {label:'MONTHLY EXPECTED',     vals:branches.map(function(b){return monthTotals[b].weeklyExp;}), cls:''},
+    {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return monthTotals[b].coll;}),      cls:'var(--ok)'},
+    {label:'BALANCE CREATED',      vals:branches.map(function(b){return monthTotals[b].balance;}),   cls:'var(--r)'},
+    {label:'ADVANCE',              vals:branches.map(function(b){return monthTotals[b].adv;}),       cls:'var(--gd)'},
+    {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return rptCumAdvance(b);}),         cls:''},
+    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return monthTotals[b].collPen;}),   cls:'var(--ok)'},
+    {label:'CREATED PENALTY',      vals:branches.map(function(b){return monthTotals[b].createdPen;}),cls:'var(--wn)'},
+    {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return rptCumPenalty(b);}),         cls:'var(--wn)'},
+    {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return monthTotals[b].recovery;}),  cls:'var(--in)'},
+    {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return monthTotals[b].totalColl;}), cls:'var(--ok)',bold:true},
+    {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return monthTotals[b].balance;}),   cls:'var(--r)'},
+    {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return rptCumBalance(b);}),         cls:'var(--r)',bold:true},
+    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
+    {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+  ];
+
+  h+='<div class="cd" style="border:2px solid var(--r2)">';
+  h+='<div class="cdh" style="background:linear-gradient(135deg,var(--r2),var(--r))"><span class="cdt" style="color:#fff">MONTHLY TOTAL — '+new Date(yr,mn,1).toLocaleString('default',{month:'long',year:'numeric'})+'</span></div>';
+  h+=rptTable(branches,mRows);
+  h+='</div>';
+
+  document.getElementById('rcont').innerHTML=h;
+}
+
+// ── QUARTERLY REPORT ───────────────────────────────────────────────────────
+
+function buildQuarterlyReport(){
+  var today=td_();
+  var qSel=document.getElementById('rpt-qtr-inp')?document.getElementById('rpt-qtr-inp').value:'';
+  var yr=parseInt(today.split('-')[0]);
+  var qn=Math.floor((parseInt(today.split('-')[1])-1)/3);
+  if(qSel){yr=parseInt(qSel.split('-Q')[0]);qn=parseInt(qSel.split('-Q')[1])-1;}
+  var branches=rptBranches();
+
+  var qStartMn=qn*3;
+  var months=[];
+  for(var m=0;m<3;m++){
+    var mn2=(qStartMn+m);
+    var y2=yr+(mn2>11?1:0);
+    mn2=mn2%12;
+    months.push({yr:y2,mn:mn2,label:new Date(y2,mn2,1).toLocaleString('default',{month:'long'})});
+  }
+
+  // Quarter date range
+  var qFrom=yr+'-'+pad(qStartMn+1)+'-01';
+  var qEndMn=qStartMn+3;var qEndY=yr;if(qEndMn>12){qEndMn=3;qEndY=yr+1;}
+  var qTo=qEndY+'-'+pad(qEndMn)+'-'+new Date(qEndY,qEndMn,0).getDate().toString().padStart(2,'0');
+  if(qTo>today)qTo=today;
+
+  var h='<div class="rh" style="margin-bottom:14px"><div>';
+  h+='<div class="rht">Quarterly Report</div>';
+  h+='<div class="rhs">Q'+(qn+1)+' '+yr+' ('+months[0].label+' – '+months[2].label+')</div></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<select id="rpt-qtr-inp" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(36,12,0,.8);color:#fff;font-size:12px" onchange="buildQuarterlyReport()">';
+  for(var y=yr-1;y<=yr;y++){for(var q=1;q<=4;q++){var sel=(y===yr&&q===qn+1)?'selected':'';h+='<option value="'+y+'-Q'+q+'" '+sel+'>Q'+q+' '+y+'</option>';}}
+  h+='</select>';
+  h+='<button class="btn bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">&#128424; Print</button>';
+  h+='</div></div>';
+
+  // Per-month blocks
+  var qTotals={};
+  for(var bi=0;bi<branches.length;bi++)qTotals[branches[bi]]={disp:0,coll:0,adv:0,recovery:0,totalColl:0,balance:0,createdPen:0,collPen:0,monthlyExp:0};
+
+  for(var mi=0;mi<months.length;mi++){
+    var mo=months[mi];
+    var mFrom=mo.yr+'-'+pad(mo.mn+1)+'-01';
+    var mTo=mo.yr+'-'+pad(mo.mn+1)+'-'+new Date(mo.yr,mo.mn+1,0).getDate().toString().padStart(2,'0');
+    if(mFrom>today)continue;
+    if(mTo>today)mTo=today;
+
+    var mStats={};
+    for(var bi=0;bi<branches.length;bi++){
+      var b=branches[bi];
+      var mDisp=rptDispersd(b,mFrom,mTo);
+      var mColl=rptCollected(b,mFrom,mTo);
+      var mExp=0,mCreatedPen=0,mCollPen=0;
+      // Sum expected for all days in month
+      var dd=new Date(mFrom+'T00:00:00');
+      while(dd.getFullYear()===mo.yr&&dd.getMonth()===mo.mn){
+        var ds2=rptDayStats(b,dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()));
+        mExp+=ds2.exp;mCreatedPen+=ds2.createdPen;mCollPen+=ds2.collPen;
+        dd.setDate(dd.getDate()+1);
+      }
+      mStats[b]={disp:mDisp,profit:mDisp*0.4,totalExp:mDisp*1.4,monthlyExp:mExp,
+        coll:mColl.coll,adv:mColl.adv,recovery:mColl.recovery,totalColl:mColl.total,
+        balance:Math.max(0,mExp-mColl.coll),createdPen:mCreatedPen,collPen:mCollPen,
+        cumBal:rptCumBalance(b),cumAdv:rptCumAdvance(b),cumPen:rptCumPenalty(b)};
+      var qt=qTotals[b];
+      qt.disp+=mDisp;qt.coll+=mColl.coll;qt.adv+=mColl.adv;qt.recovery+=mColl.recovery;
+      qt.totalColl+=mColl.total;qt.balance+=Math.max(0,mExp-mColl.coll);
+      qt.createdPen+=mCreatedPen;qt.collPen+=mCollPen;qt.monthlyExp+=mExp;
+    }
+
+    var mRows=[
+      {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return mStats[b].disp;}),      cls:'var(--in)'},
+      {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return mStats[b].profit;}),    cls:''},
+      {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return mStats[b].totalExp;}),  cls:'',bold:true},
+      {label:'MONTHLY EXPECTED',     vals:branches.map(function(b){return mStats[b].monthlyExp;}),cls:''},
+      {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return mStats[b].coll;}),      cls:'var(--ok)'},
+      {label:'BALANCE CREATED',      vals:branches.map(function(b){return mStats[b].balance;}),   cls:'var(--r)'},
+      {label:'ADVANCE',              vals:branches.map(function(b){return mStats[b].adv;}),       cls:'var(--gd)'},
+      {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return mStats[b].cumAdv;}),    cls:''},
+      {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return mStats[b].collPen;}),   cls:'var(--ok)'},
+      {label:'CREATED PENALTY',      vals:branches.map(function(b){return mStats[b].createdPen;}),cls:'var(--wn)'},
+      {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return mStats[b].cumPen;}),    cls:'var(--wn)'},
+      {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return mStats[b].recovery;}),  cls:'var(--in)'},
+      {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return mStats[b].totalColl;}), cls:'var(--ok)',bold:true},
+      {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return mStats[b].balance;}),   cls:'var(--r)'},
+      {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return mStats[b].cumBal;}),    cls:'var(--r)',bold:true},
+      {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
+      {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+    ];
+    h+='<div class="cd" style="margin-bottom:10px">';
+    h+='<div class="cdh"><span class="cdt">'+mo.label+' '+mo.yr+'</span></div>';
+    h+=rptTable(branches,mRows);
+    h+='</div>';
+  }
+
+  // Quarter total
+  var qRows=[
+    {label:'DISPERSED AMOUNT',     vals:branches.map(function(b){return qTotals[b].disp;}),      cls:'var(--in)'},
+    {label:'EXPECTED PROFIT (40%)',vals:branches.map(function(b){return qTotals[b].disp*0.4;}),  cls:''},
+    {label:'TOTAL EXPECTED',       vals:branches.map(function(b){return qTotals[b].disp*1.4;}),  cls:'',bold:true},
+    {label:'QUARTERLY EXPECTED',   vals:branches.map(function(b){return qTotals[b].monthlyExp;}),cls:''},
+    {label:'COLLECTED AMOUNT',     vals:branches.map(function(b){return qTotals[b].coll;}),      cls:'var(--ok)'},
+    {label:'BALANCE CREATED',      vals:branches.map(function(b){return qTotals[b].balance;}),   cls:'var(--r)'},
+    {label:'ADVANCE',              vals:branches.map(function(b){return qTotals[b].adv;}),       cls:'var(--gd)'},
+    {label:'CUMULATIVE ADVANCE',   vals:branches.map(function(b){return rptCumAdvance(b);}),     cls:''},
+    {label:'COLLECTED PENALTY',    vals:branches.map(function(b){return qTotals[b].collPen;}),   cls:'var(--ok)'},
+    {label:'CREATED PENALTY',      vals:branches.map(function(b){return qTotals[b].createdPen;}),cls:'var(--wn)'},
+    {label:'CUMULATIVE PENALTY',   vals:branches.map(function(b){return rptCumPenalty(b);}),     cls:'var(--wn)'},
+    {label:'TOTAL RECOVERY',       vals:branches.map(function(b){return qTotals[b].recovery;}),  cls:'var(--in)'},
+    {label:'TOTAL COLLECTED',      vals:branches.map(function(b){return qTotals[b].totalColl;}), cls:'var(--ok)',bold:true},
+    {label:'ACCUMULATED BALANCE',  vals:branches.map(function(b){return qTotals[b].balance;}),   cls:'var(--r)'},
+    {label:'CUMULATIVE BALANCE',   vals:branches.map(function(b){return rptCumBalance(b);}),     cls:'var(--r)',bold:true},
+    {label:'BALANCE IN COLLATERAL',vals:branches.map(function(){return 0;}),cls:''},
+    {label:'FOAM MONEY',           vals:branches.map(function(){return 0;}),cls:''},
+    {label:'EXPENSES',             vals:branches.map(function(){return 0;}),cls:'var(--r)'},
+  ];
+
+  h+='<div class="cd" style="border:2px solid var(--r2)">';
+  h+='<div class="cdh" style="background:linear-gradient(135deg,#4a1f00,var(--r))"><span class="cdt" style="color:#fff">QUARTERLY TOTAL — Q'+(qn+1)+' '+yr+'</span></div>';
+  h+=rptTable(branches,qRows);
+  h+='</div>';
+
+  document.getElementById('rcont').innerHTML=h;
+}
+
+
 function renderActivity(mc){var h='<div class="cd"><div class="cdh"><span class="cdt">Activity Log</span></div><div class="cdb">';if(!actLog.length){h+='<div class="es" style="padding:28px"><div class="ei">&#128336;</div><div class="et">No activity yet</div></div>';}for(var i=0;i<actLog.length;i++){var l=actLog[i];h+='<div class="logrow"><div class="logdot '+l.type+'"></div><div style="flex:1"><div style="font-size:12px;font-weight:500">'+esc(l.msg)+'</div><div style="font-size:10px;color:var(--mu);margin-top:2px">'+esc(l.user)+' ('+esc(l.username)+') &#183; '+fmtDT(l.time)+'</div></div><span class="bg '+(l.type==='in'?'bgg':l.type==='out'?'bgr':'bgb')+'" style="font-size:8px">'+(l.type==='in'?'Login':l.type==='out'?'Logout':'Action')+'</span></div>';}h+='</div></div>';mc.innerHTML=h;}
 function renderDataManage(mc){
   var sCodes=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'];
@@ -3006,8 +3930,11 @@ function openEditApp(id){
   document.getElementById('ea_amt').value=a.amountRequested||'';
   document.getElementById('ea_occ').value=a.occupation||'';
   document.getElementById('ea_status').value=a.status||'draft';
-  // Non-admins can only edit draft apps
+  // Officers can edit their own draft/submitted/rejected apps; admins can change status
   var isAdmin=canDo('admin');
+  var isOwnApp = canDo('officer') && a.officerUser === cu.username;
+  var canEdit = isAdmin || isOwnApp;
+  if (!canEdit) { toast('You can only edit your own applications.'); return; }
   document.getElementById('ea_status').disabled=!isAdmin;
   document.getElementById('editappmod').classList.add('op');
 }
@@ -3030,7 +3957,8 @@ function saveEditApp(){
   save();
   closeModal('editappmod');
   toast('Application updated!');
-  showTab('applications');
+  if(canDo('officer')) renderMyApps(document.getElementById('mainct'));
+  else showTab('applications');
 }
 
 // ---- DELETE APPLICATION ----
