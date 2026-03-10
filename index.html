@@ -1835,7 +1835,6 @@ function addG1Row(){var tb=document.getElementById('g1tbl'),tr=document.createEl
 function addG2Row(){var tb=document.getElementById('g2tbl'),tr=document.createElement('tr');tr.innerHTML='<td><input placeholder="Item name"></td><td><select style="width:100%;border:none;background:transparent;font-size:12px"><option>New</option><option>Good</option><option>Fair</option><option>Old</option></select></td><td><input placeholder="Comments"></td><td><button class="ab" style="color:var(--r)" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';tb.appendChild(tr);}
 // ===== FIREBASE STORAGE PHOTO UPLOAD =====
 
-// Upload a single base64 data-URL to Firebase Storage, return download URL
 function _uploadOnePhoto(dataUrl, storagePath) {
   return new Promise(function(resolve) {
     if (!_storage) { resolve(null); return; }
@@ -1844,76 +1843,67 @@ function _uploadOnePhoto(dataUrl, storagePath) {
       ref.putString(dataUrl, 'data_url')
         .then(function(snap) { return snap.ref.getDownloadURL(); })
         .then(function(url) { resolve(url); })
-        .catch(function(e) { console.error('Photo upload failed:', storagePath, e.message); resolve(null); });
-    } catch(e) { console.error('Photo upload error:', e); resolve(null); }
+        .catch(function(e) { console.error('Photo upload failed:', e.message); resolve(null); });
+    } catch(e) { resolve(null); }
   });
 }
 
-// Upload all photos from pph for a given appId BEFORE the app is saved.
-// Returns a promise resolving to {businessPhotos:[], homePhotos:[], guarantorPhotos:[]} with HTTPS URLs.
-function _uploadAllPhotos(appId) {
-  var typeMap = { businessPhotos: pph.business, homePhotos: pph.home, guarantorPhotos: pph.guarantor };
-  var result = { businessPhotos: [], homePhotos: [], guarantorPhotos: [] };
-  if (!_storage) return Promise.resolve(result);
+// Upload all pending photos (pph) to Firebase Storage in the background.
+// After uploads finish, patches the saved app with real URLs and re-saves to Firestore.
+function _uploadPhotosInBackground(appId) {
+  if (!_storage) return;
+  var types = { businessPhotos: pph.business.slice(), homePhotos: pph.home.slice(), guarantorPhotos: pph.guarantor.slice() };
+  var hasPhotos = types.businessPhotos.length + types.homePhotos.length + types.guarantorPhotos.length;
+  if (!hasPhotos) return;
 
   var uploads = [];
-  Object.keys(typeMap).forEach(function(field) {
-    var photos = typeMap[field];
-    photos.forEach(function(photo, idx) {
+  var results = { businessPhotos: [], homePhotos: [], guarantorPhotos: [] };
+
+  Object.keys(types).forEach(function(field) {
+    types[field].forEach(function(photo, idx) {
       var src = (photo && photo.preview) ? photo.preview : (typeof photo === 'string' ? photo : null);
-      if (!src) return;
-      if (src.indexOf('http') === 0) { result[field].push(src); return; } // already a URL
-      if (!src.startsWith('data:')) return;
-      var slotIdx = result[field].length;
-      result[field].push(null); // placeholder
-      var path = 'photos/' + appId + '/' + field + '_' + idx + '_' + Date.now();
+      if (!src || src.indexOf('data:') !== 0) return;
+      var slot = results[field].length;
+      results[field].push(null);
+      var path = 'photos/' + appId + '/' + field + '_' + idx;
       uploads.push(
-        _uploadOnePhoto(src, path).then(function(url) { result[field][slotIdx] = url || null; })
+        _uploadOnePhoto(src, path).then(function(url) { if (url) results[field][slot] = url; })
       );
     });
   });
 
-  return Promise.all(uploads).then(function() {
-    result.businessPhotos  = result.businessPhotos.filter(Boolean);
-    result.homePhotos      = result.homePhotos.filter(Boolean);
-    result.guarantorPhotos = result.guarantorPhotos.filter(Boolean);
-    return result;
+  Promise.all(uploads).then(function() {
+    var urls = {
+      businessPhotos:  results.businessPhotos.filter(Boolean),
+      homePhotos:      results.homePhotos.filter(Boolean),
+      guarantorPhotos: results.guarantorPhotos.filter(Boolean)
+    };
+    var total = urls.businessPhotos.length + urls.homePhotos.length + urls.guarantorPhotos.length;
+    if (!total) return;
+
+    // Patch the app in memory with the real URLs
+    var app = findA(appId);
+    if (app) {
+      app.businessPhotos  = urls.businessPhotos;
+      app.homePhotos      = urls.homePhotos;
+      app.guarantorPhotos = urls.guarantorPhotos;
+      save(); // re-sync to Firestore with real URLs
+      console.log('Photos saved to Firebase Storage:', total, 'for app', appId);
+      toast('\ud83d\udcf7 ' + total + ' photo(s) saved to cloud.');
+    }
+  }).catch(function(e) {
+    console.error('Background photo upload error:', e);
   });
 }
 
 function saveApp(isDraft) {
-  // ── Step 1: Read ALL form values synchronously, right now, before anything async ──
+  // Read all form values synchronously first
   var name   = document.getElementById('apn').value.trim();
   var nrc    = document.getElementById('apnrc').value.trim();
   var phone  = document.getElementById('apph').value.trim();
   var branch = document.getElementById('apbr').value;
   var amt    = parseFloat(document.getElementById('apamt').value) || 0;
   if (!isDraft && (!name || !nrc || !phone || !branch || !amt)) { toast('Please fill all required fields.'); return; }
-
-  // Capture every field value now — nothing is read from DOM after this point
-  var formData = {
-    occupation:      (document.getElementById('apocc')  ||{}).value || '',
-    address:         (document.getElementById('apadr')  ||{}).value || '',
-    businessAddress: (document.getElementById('apbadr') ||{}).value || '',
-    colType:         (document.getElementById('apcoltype')||{}).value || 'Appliances',
-    spouseName:      (document.getElementById('apspn')  ||{}).value || '',
-    spouseNrc:       (document.getElementById('apspnrc')||{}).value || '',
-    spousePhone:     (document.getElementById('apspph') ||{}).value || '',
-    g1name:  (document.getElementById('apg1n')  ||{}).value || '',
-    g1nrc:   (document.getElementById('apg1nrc')||{}).value || '',
-    g1phone: (document.getElementById('apg1ph') ||{}).value || '',
-    g1ba:    (document.getElementById('apg1ba') ||{}).value || '',
-    g1ha:    (document.getElementById('apg1ha') ||{}).value || '',
-    g2name:  (document.getElementById('apg2n')  ||{}).value || '',
-    g2nrc:   (document.getElementById('apg2nrc')||{}).value || '',
-    g2phone: (document.getElementById('apg2ph') ||{}).value || '',
-    g2ba:    (document.getElementById('apg2ba') ||{}).value || '',
-    g2ha:    (document.getElementById('apg2ha') ||{}).value || '',
-    spouseSig: getSigData('sig-spouse'),
-    g1sig:     getSigData('sig-g1'),
-    g2sig:     getSigData('sig-g2'),
-    clientSig: getSigData('sig-client')
-  };
 
   var colRows = [], g1Rows = [], g2Rows = [];
   var ctrs = document.getElementById('coltbody').querySelectorAll('tr');
@@ -1924,66 +1914,53 @@ function saveApp(isDraft) {
   for (var i=0;i<g2trs.length;i++){var ins=g2trs[i].querySelectorAll('input,select');if(ins[0]&&ins[0].value.trim())g2Rows.push({item:ins[0].value,condition:ins[1]?ins[1].value:'',comments:ins[2]?ins[2].value:''});}
 
   var appId = gAid();
-  var totalPhotos = pph.business.length + pph.home.length + pph.guarantor.length;
-  var officerName = cu.display, officerUser = cu.username;
 
-  // ── Step 2: Disable buttons to prevent double-submit ──
-  var btns = document.querySelectorAll('#appmod .btn');
-  function enableBtns() { for (var i=0;i<btns.length;i++) btns[i].disabled = false; }
+  // Build and save the app immediately — no waiting for photos
+  var app = {
+    id: appId, name: name, nrc: nrc, phone: phone, branch: branch,
+    occupation:      (document.getElementById('apocc') ||{value:''}).value,
+    address:         (document.getElementById('apadr') ||{value:''}).value,
+    businessAddress: (document.getElementById('apbadr')||{value:''}).value,
+    amountRequested: amt, amountDue: amt*1.4, dailyPayment: amt*1.4/25,
+    colType: (document.getElementById('apcoltype')||{value:'Appliances'}).value,
+    colRows: colRows,
+    g1: { name:(document.getElementById('apg1n')  ||{value:''}).value,
+          nrc: (document.getElementById('apg1nrc')||{value:''}).value,
+          phone:(document.getElementById('apg1ph')||{value:''}).value,
+          ba:  (document.getElementById('apg1ba') ||{value:''}).value,
+          ha:  (document.getElementById('apg1ha') ||{value:''}).value,
+          items: g1Rows, sig: getSigData('sig-g1') },
+    g2: { name:(document.getElementById('apg2n')  ||{value:''}).value,
+          nrc: (document.getElementById('apg2nrc')||{value:''}).value,
+          phone:(document.getElementById('apg2ph')||{value:''}).value,
+          ba:  (document.getElementById('apg2ba') ||{value:''}).value,
+          ha:  (document.getElementById('apg2ha') ||{value:''}).value,
+          items: g2Rows, sig: getSigData('sig-g2') },
+    spouse: { name: (document.getElementById('apspn')  ||{value:''}).value,
+              nrc:  (document.getElementById('apspnrc')||{value:''}).value,
+              phone:(document.getElementById('apspph') ||{value:''}).value,
+              sig:  getSigData('sig-spouse') },
+    clientSig:       getSigData('sig-client'),
+    businessPhotos:  [],
+    homePhotos:      [],
+    guarantorPhotos: [],
+    officerName: cu.display, officerUser: cu.username,
+    status: isDraft ? 'draft' : 'submitted',
+    createdAt: now_(), submittedAt: isDraft ? null : now_()
+  };
 
-  for (var i=0;i<btns.length;i++) btns[i].disabled = true;
+  // Save and close immediately — submission never blocks on photos
+  applications.push(app);
+  logAct('act', (isDraft ? 'Saved draft for ' : 'Submitted app for ') + name);
+  save();
+  closeModal('appmod');
+  toast(isDraft ? 'Draft saved!' : 'Application submitted to Credit Controller!');
+  showTab('myapps');
 
-  if (!isDraft && totalPhotos > 0 && _storage) {
-    toast('\u23eb Uploading ' + totalPhotos + ' photo(s)\u2026 please wait');
-  }
-
-  // ── Step 3: Upload photos, THEN finalise app object (no DOM reads here) ──
-  _uploadAllPhotos(appId).then(function(photos) {
-    try {
-      var uploaded = photos.businessPhotos.length + photos.homePhotos.length + photos.guarantorPhotos.length;
-      console.log('Photos ready:', uploaded, 'of', totalPhotos, 'uploaded');
-
-      var app = {
-        id: appId, name: name, nrc: nrc, phone: phone, branch: branch,
-        occupation: formData.occupation,
-        address: formData.address,
-        businessAddress: formData.businessAddress,
-        amountRequested: amt, amountDue: amt*1.4, dailyPayment: amt*1.4/25,
-        colType: formData.colType, colRows: colRows,
-        g1: { name:formData.g1name, nrc:formData.g1nrc, phone:formData.g1phone,
-              ba:formData.g1ba, ha:formData.g1ha, items:g1Rows, sig:formData.g1sig },
-        g2: { name:formData.g2name, nrc:formData.g2nrc, phone:formData.g2phone,
-              ba:formData.g2ba, ha:formData.g2ha, items:g2Rows, sig:formData.g2sig },
-        spouse: { name:formData.spouseName, nrc:formData.spouseNrc,
-                  phone:formData.spousePhone, sig:formData.spouseSig },
-        clientSig: formData.clientSig,
-        businessPhotos:  photos.businessPhotos,
-        homePhotos:      photos.homePhotos,
-        guarantorPhotos: photos.guarantorPhotos,
-        officerName: officerName, officerUser: officerUser,
-        status: isDraft ? 'draft' : 'submitted',
-        createdAt: now_(), submittedAt: isDraft ? null : now_()
-      };
-
-      applications.push(app);
-      logAct('act', (isDraft ? 'Saved draft for ' : 'Submitted app for ') + name);
-      save();
-      enableBtns();
-      closeModal('appmod');
-      if (!isDraft && uploaded > 0) toast('\ud83d\udcf7 Submitted with ' + uploaded + ' photo(s)!');
-      else toast(isDraft ? 'Draft saved!' : 'Application submitted to Credit Controller!');
-      showTab('myapps');
-    } catch(err) {
-      console.error('saveApp then-block error:', err);
-      enableBtns();
-      toast('\u26a0\ufe0f Submission error: ' + err.message + ' — please try again.');
-    }
-  }).catch(function(e) {
-    console.error('saveApp upload error:', e);
-    enableBtns();
-    toast('\u26a0\ufe0f Upload failed: ' + (e.message||'unknown error') + ' — please try again.');
-  });
+  // Upload photos silently in the background after modal is gone
+  if (!isDraft) _uploadPhotosInBackground(appId);
 }
+
 function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);save();toast('Submitted to Credit Controller!');renderMyApps(document.getElementById('mainct'));}
 function openApproval(id){
   aprvId=id;var a=findA(id);if(!a)return;
