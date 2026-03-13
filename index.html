@@ -1176,61 +1176,124 @@ function initFirebase() {
   }
 }
 
-function saveData() {
-  // 1. Save to localStorage immediately (instant backup)
+// ── SUBCOLLECTION FIREBASE ARCHITECTURE ────────────────────────────────────
+// Collections: salty/meta (counters, users, settings)
+//              salty/clients/{id}
+//              salty/loans/{id}
+//              salty/payments/{id}
+//              salty/applications/{id}
+//              salty/disbursements/{id}
+// No single document will ever hit the 1MB Firestore limit.
+
+var _dirtyClients={}, _dirtyLoans={}, _dirtyPayments={},
+    _dirtyApps={}, _dirtyDisbs={}, _dirtyMeta=false;
+
+function _saveLS() {
   try {
     localStorage.setItem('salty_v3', JSON.stringify({
       clients:clients, loans:loans, payments:payments,
       applications:applications, disbursements:disbursements,
-      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS, manualEntries:manualEntries
+      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS, manualEntries:manualEntries, branches:branches
     }));
-  } catch(e) {}
+  } catch(e) { console.warn('localStorage full:', e); }
+}
 
-  // 2. Push to Firebase
-  if (!_fbReady || !_db) {
-    console.warn('Firebase not ready, saved locally only');
-    return;
-  }
+function saveData() {
+  _saveLS();
+  if (!_fbReady || !_db) { console.warn('Firebase not ready, saved locally only'); return; }
   if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(function() {
-    _pushToFirebase();
-  }, 1500);
+  _saveTimer = setTimeout(_pushToFirebase, 1500);
 }
 
 function _pushToFirebase() {
   if (_isSaving) { _pendingSave = true; return; }
   _isSaving = true;
 
-  // Strip any stray base64 before pushing to Firestore (safety net — should be URLs only)
-  var cleanApps = (applications||[]).map(function(a) {
-    var c = JSON.parse(JSON.stringify(a));
-    ['businessPhotos','homePhotos','guarantorPhotos'].forEach(function(f) {
-      c[f] = (c[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
-    });
-    return c;
-  });
+  var batch = _db.batch();
+  var batchCount = 0;
+  var MAX_BATCH = 490; // Firestore batch limit is 500 ops
 
-  var payload = {
-    clients: clients||[],
-    loans: loans||[],
-    payments: payments||[],
-    applications: cleanApps,
-    disbursements: disbursements||[],
-    actLog: (actLog||[]).slice(-50),
+  function flushBatch() {
+    if (batchCount === 0) return Promise.resolve();
+    var b = batch;
+    batch = _db.batch();
+    batchCount = 0;
+    return b.commit();
+  }
+
+  function addToBatch(ref, data) {
+    batch.set(ref, data);
+    batchCount++;
+    if (batchCount >= MAX_BATCH) {
+      return flushBatch();
+    }
+    return Promise.resolve();
+  }
+
+  // --- Meta doc (counters, users, manualEntries, actLog) ---
+  var metaRef = _db.collection('salty').doc('meta');
+  batch.set(metaRef, {
     cidc: cidc||1,
     lidc: lidc||1,
     USERS: USERS,
     manualEntries: manualEntries||{},
+    branches: branches||{NORTH:NORTH,SOUTH:SOUTH},
+    actLog: (actLog||[]).slice(-100),
     ts: Date.now()
-  };
+  });
+  batchCount++;
 
-  console.log('📤 Pushing to Firebase... apps:', cleanApps.length);
+  // --- Clients ---
+  for (var i=0; i<clients.length; i++) {
+    var ref = _db.collection('salty').doc('clients').collection('c').doc(clients[i].id);
+    batch.set(ref, clients[i]);
+    batchCount++;
+    if (batchCount >= MAX_BATCH) { flushBatch(); }
+  }
 
-  _db.collection('salty').doc('maindata').set(payload)
+  // --- Loans ---
+  for (var i=0; i<loans.length; i++) {
+    var ref = _db.collection('salty').doc('loans').collection('l').doc(loans[i].id);
+    batch.set(ref, loans[i]);
+    batchCount++;
+    if (batchCount >= MAX_BATCH) { flushBatch(); }
+  }
+
+  // --- Payments ---
+  for (var i=0; i<payments.length; i++) {
+    var p = payments[i];
+    var pid = String(p.id);
+    var ref = _db.collection('salty').doc('payments').collection('p').doc(pid);
+    batch.set(ref, p);
+    batchCount++;
+    if (batchCount >= MAX_BATCH) { flushBatch(); }
+  }
+
+  // --- Applications (strip base64, keep only https URLs) ---
+  for (var i=0; i<applications.length; i++) {
+    var a = JSON.parse(JSON.stringify(applications[i]));
+    ['businessPhotos','homePhotos','guarantorPhotos'].forEach(function(f) {
+      a[f] = (a[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
+    });
+    var ref = _db.collection('salty').doc('applications').collection('a').doc(a.id);
+    batch.set(ref, a);
+    batchCount++;
+    if (batchCount >= MAX_BATCH) { flushBatch(); }
+  }
+
+  // --- Disbursements ---
+  for (var i=0; i<disbursements.length; i++) {
+    var ref = _db.collection('salty').doc('disbursements').collection('d').doc(disbursements[i].id);
+    batch.set(ref, disbursements[i]);
+    batchCount++;
+    if (batchCount >= MAX_BATCH) { flushBatch(); }
+  }
+
+  flushBatch()
     .then(function() {
       _isSaving = false;
       _lastSaveTime = Date.now();
-      console.log('✅ Firebase saved! Apps:', cleanApps.length);
+      console.log('✅ Firebase saved (subcollections)');
       showSyncDot();
       if (_pendingSave) { _pendingSave = false; _pushToFirebase(); }
     })
@@ -1243,10 +1306,8 @@ function _pushToFirebase() {
 
 function loadData() { return false; }
 
-
-
 function startRealtimeSync() {
-  // Load from localStorage first (instant, no network needed)
+  // 1. Load from localStorage immediately (instant, works offline)
   try {
     var raw = localStorage.getItem('salty_v3');
     if (raw) {
@@ -1261,30 +1322,26 @@ function startRealtimeSync() {
       if (d.lidc)          lidc          = d.lidc;
       if (d.USERS)         { for (var _lk in d.USERS) { if (d.USERS.hasOwnProperty(_lk)) USERS[_lk] = d.USERS[_lk]; } }
       if (d.manualEntries) manualEntries = d.manualEntries;
+      if (d.branches && d.branches.NORTH && d.branches.SOUTH) { branches=d.branches; _rebuildBranches(); }
     }
   } catch(e) {}
 
   if (!clients.length) seedDemo();
   showHome();
 
-  // Wait for Firebase to be ready (may still be loading)
+  // 2. Connect Firebase and load live data
   function connectFirebase() {
     if (_fbReady && _db) {
-      _startFirebaseListener();
+      _loadFromFirebase();
     } else {
-      // Try to init again
       try { initFirebase(); } catch(e) {}
       if (_fbReady && _db) {
-        _startFirebaseListener();
+        _loadFromFirebase();
       } else {
-        // Retry after 3 seconds
         setTimeout(function() {
           try { initFirebase(); } catch(e) {}
-          if (_fbReady && _db) {
-            _startFirebaseListener();
-          } else {
-            console.warn('Firebase not available — offline mode');
-          }
+          if (_fbReady && _db) { _loadFromFirebase(); }
+          else { console.warn('Firebase not available — offline mode'); }
         }, 3000);
       }
     }
@@ -1292,95 +1349,242 @@ function startRealtimeSync() {
   connectFirebase();
 }
 
+function _loadFromFirebase() {
+  // Load all subcollections in parallel, then start real-time listeners
+  var loaded = {meta:false, clients:false, loans:false, payments:false, apps:false, disbs:false};
+  var newData = false;
+
+  function checkAllLoaded() {
+    for (var k in loaded) if (!loaded[k]) return;
+    // All loaded — save to localStorage and refresh UI
+    _saveLS();
+    if (cu) {
+      var modalOpen = document.querySelector('.mo.op');
+      if (!modalOpen && window._currentTab) showTab(window._currentTab);
+      if (newData) showSyncDot();
+    }
+    console.log('✅ All Firebase data loaded');
+    // Now start real-time listeners
+    _startFirebaseListener();
+  }
+
+  function mergeInto(arr, doc, key) {
+    if (!doc.exists) return false;
+    var remote = doc.data();
+    if (!remote || !remote[key]) return false;
+    var map = {};
+    arr.forEach(function(x){ if(x.id) map[x.id]=x; });
+    var changed = false;
+    remote[key].forEach(function(r) {
+      if (!r.id) return;
+      if (!map[r.id]) { map[r.id]=r; changed=true; }
+    });
+    arr.length = 0;
+    for (var k in map) arr.push(map[k]);
+    return changed;
+  }
+
+  // Meta
+  _db.collection('salty').doc('meta').get().then(function(doc) {
+    if (doc.exists) {
+      var m = doc.data();
+      if (m.cidc > cidc) cidc = m.cidc;
+      if (m.lidc > lidc) lidc = m.lidc;
+      if (m.USERS) { for (var k in m.USERS) { if(m.USERS.hasOwnProperty(k)) USERS[k]=m.USERS[k]; } }
+      if (m.manualEntries) { for (var k in m.manualEntries) { manualEntries[k]=m.manualEntries[k]; } }
+    if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
+      if (m.actLog) actLog = m.actLog;
+    }
+    loaded.meta = true; checkAllLoaded();
+  }).catch(function(){ loaded.meta=true; checkAllLoaded(); });
+
+  // Clients
+  _db.collection('salty').doc('clients').collection('c').get().then(function(snap) {
+    var map = {};
+    clients.forEach(function(x){ if(x.id) map[x.id]=x; });
+    snap.forEach(function(doc) {
+      var r=doc.data(); if(!r.id) return;
+      var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
+      if (map[r.id]) {
+        photoFields.forEach(function(f) {
+          var lp=(map[r.id][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+          var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+          if(rp.length>lp.length) map[r.id][f]=rp;
+        });
+      } else { map[r.id]=r; newData=true; }
+    });
+    clients=[]; for(var k in map) clients.push(map[k]);
+    loaded.clients=true; checkAllLoaded();
+  }).catch(function(){ loaded.clients=true; checkAllLoaded(); });
+
+  // Loans
+  _db.collection('salty').doc('loans').collection('l').get().then(function(snap) {
+    var map = {};
+    loans.forEach(function(x){ if(x.id) map[x.id]=x; });
+    snap.forEach(function(doc) {
+      var r=doc.data(); if(!r.id) return;
+      if (!map[r.id]) { map[r.id]=r; newData=true; }
+    });
+    loans=[]; for(var k in map) loans.push(map[k]);
+    loaded.loans=true; checkAllLoaded();
+  }).catch(function(){ loaded.loans=true; checkAllLoaded(); });
+
+  // Payments
+  _db.collection('salty').doc('payments').collection('p').get().then(function(snap) {
+    var map = {};
+    payments.forEach(function(x){ if(x.id) map[String(x.id)]=x; });
+    snap.forEach(function(doc) {
+      var r=doc.data(); if(!r.id) return;
+      if (!map[String(r.id)]) { map[String(r.id)]=r; newData=true; }
+    });
+    payments=[]; for(var k in map) payments.push(map[k]);
+    loaded.payments=true; checkAllLoaded();
+  }).catch(function(){ loaded.payments=true; checkAllLoaded(); });
+
+  // Applications
+  _db.collection('salty').doc('applications').collection('a').get().then(function(snap) {
+    var map = {};
+    applications.forEach(function(x){ if(x.id) map[x.id]=x; });
+    snap.forEach(function(doc) {
+      var r=doc.data(); if(!r.id) return;
+      if (map[r.id]) {
+        var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
+        photoFields.forEach(function(f) {
+          var lp=(map[r.id][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+          var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+          if(rp.length>lp.length) map[r.id][f]=rp;
+        });
+      } else { map[r.id]=r; newData=true; }
+    });
+    applications=[]; for(var k in map) applications.push(map[k]);
+    loaded.apps=true; checkAllLoaded();
+  }).catch(function(){ loaded.apps=true; checkAllLoaded(); });
+
+  // Disbursements
+  _db.collection('salty').doc('disbursements').collection('d').get().then(function(snap) {
+    var map = {};
+    disbursements.forEach(function(x){ if(x.id) map[x.id]=x; });
+    snap.forEach(function(doc) {
+      var r=doc.data(); if(!r.id) return;
+      if (!map[r.id]) { map[r.id]=r; newData=true; }
+    });
+    disbursements=[]; for(var k in map) disbursements.push(map[k]);
+    loaded.disbs=true; checkAllLoaded();
+  }).catch(function(){ loaded.disbs=true; checkAllLoaded(); });
+}
+
 function _startFirebaseListener() {
   if (!_fbReady || !_db) return;
 
-  // Listen to Firebase for updates from other devices
-  _db.collection('salty').doc('maindata').onSnapshot(function(doc) {
-    if (!doc.exists) {
-      // No data in Firebase yet — push our local data
-      console.log('No Firebase data yet, pushing local data...');
-      _pushToFirebase();
-      return;
-    }
+  // Listen to meta doc for cross-device setting changes
+  _db.collection('salty').doc('meta').onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var m = doc.data();
+    if (m.cidc > cidc) cidc = m.cidc;
+    if (m.lidc > lidc) lidc = m.lidc;
+    if (m.USERS) { for (var k in m.USERS) { if(m.USERS.hasOwnProperty(k)) USERS[k]=m.USERS[k]; } }
+    if (m.manualEntries) { for (var k in m.manualEntries) { if(!manualEntries[k]) manualEntries[k]=m.manualEntries[k]; } }
+    if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
+    _saveLS();
+  }, function(e){ console.warn('meta listener:', e); });
 
-    var remote = doc.data();
-    if (!remote) return;
-
-    var remotets = remote.ts || 0;
-    console.log('📥 Firebase update received. Remote apps:', (remote.applications||[]).length, 'Local apps:', applications.length);
-
-    // Merge remote into local — keep ALL records from both
-    function mergeArr(local, remote, key) {
-      var remoteMap = {};
-      (remote||[]).forEach(function(r){ if(r[key]) remoteMap[r[key]] = r; });
-      var map = {};
-      (remote||[]).forEach(function(r){ if(r[key]) map[r[key]] = r; });
-      (local||[]).forEach(function(l){
-        if(!l[key]) return;
-        var r = remoteMap[l[key]];
-        if (r) {
-          // Local wins overall, but for photo arrays: keep whichever has more real URLs
-          var merged = JSON.parse(JSON.stringify(l));
-          var photoFields = ['businessPhotos','homePhotos','guarantorPhotos'];
+  // Listen to clients subcollection
+  _db.collection('salty').doc('clients').collection('c').onSnapshot(function(snap) {
+    var changed = false;
+    snap.docChanges().forEach(function(change) {
+      var r = change.doc.data(); if (!r.id) return;
+      var idx = -1;
+      for (var i=0; i<clients.length; i++) { if (clients[i].id===r.id) { idx=i; break; } }
+      if (change.type === 'removed') {
+        if (idx >= 0) { clients.splice(idx,1); changed=true; }
+      } else {
+        if (idx >= 0) {
+          // Merge photo fields — keep whichever has more URLs
+          var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
           photoFields.forEach(function(f) {
-            var lp = (l[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
-            var rp = (r[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
-            if (rp.length > lp.length) merged[f] = rp;
+            var lp=(clients[idx][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+            var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+            if(rp.length>lp.length) r[f]=rp; else r[f]=lp;
           });
-          map[l[key]] = merged;
-        } else {
-          map[l[key]] = l;
-        }
-      });
-      var out = [];
-      for (var k in map) out.push(map[k]);
-      return out;
-    }
-
-    var mergedApps  = mergeArr(applications,  remote.applications||[],  'id');
-    var mergedCli   = mergeArr(clients,        remote.clients||[],       'id');
-    var mergedLoans = mergeArr(loans,          remote.loans||[],         'id');
-    var mergedPays  = mergeArr(payments,       remote.payments||[],      'id');
-    var mergedDisbs = mergeArr(disbursements,  remote.disbursements||[], 'id');
-
-    // Only update if remote has something new
-    var hasNewData = mergedApps.length > applications.length ||
-                     mergedCli.length > clients.length ||
-                     mergedLoans.length > loans.length ||
-                     mergedPays.length > payments.length;
-
-    applications  = mergedApps;
-    clients       = mergedCli;
-    loans         = mergedLoans;
-    payments      = mergedPays;
-    disbursements = mergedDisbs;
-    if (remote.USERS) { for (var _rk in remote.USERS) { if (remote.USERS.hasOwnProperty(_rk)) USERS[_rk] = remote.USERS[_rk]; } }
-    if (remote.cidc > cidc) cidc = remote.cidc;
-    if (remote.lidc > lidc) lidc = remote.lidc;
-    if (remote.manualEntries) { for (var _mk in remote.manualEntries) { manualEntries[_mk]=remote.manualEntries[_mk]; } }
-
-    // Save merged to localStorage
-    try {
-      localStorage.setItem('salty_v3', JSON.stringify({
-        clients:clients, loans:loans, payments:payments,
-        applications:applications, disbursements:disbursements,
-        actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS
-      }));
-    } catch(e) {}
-
-    // Refresh UI if logged in and no form is open
-    if (cu) {
-      var modalOpen = document.querySelector('.mo.op');
-      if (!modalOpen && window._currentTab) {
-        showTab(window._currentTab);
+          clients[idx] = r;
+        } else { clients.push(r); changed=true; }
       }
-      if (hasNewData) showSyncDot();
-    }
+    });
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+  }, function(e){ console.warn('clients listener:', e); });
 
-  }, function(err) {
-    console.error('Firebase listener error:', err);
-  });
+  // Listen to loans subcollection
+  _db.collection('salty').doc('loans').collection('l').onSnapshot(function(snap) {
+    var changed = false;
+    snap.docChanges().forEach(function(change) {
+      var r = change.doc.data(); if (!r.id) return;
+      var idx = -1;
+      for (var i=0; i<loans.length; i++) { if (loans[i].id===r.id) { idx=i; break; } }
+      if (change.type === 'removed') {
+        if (idx >= 0) { loans.splice(idx,1); changed=true; }
+      } else {
+        if (idx >= 0) { loans[idx]=r; } else { loans.push(r); changed=true; }
+      }
+    });
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+  }, function(e){ console.warn('loans listener:', e); });
+
+  // Listen to payments subcollection
+  _db.collection('salty').doc('payments').collection('p').onSnapshot(function(snap) {
+    var changed = false;
+    snap.docChanges().forEach(function(change) {
+      var r = change.doc.data(); if (!r.id) return;
+      var sid = String(r.id);
+      var idx = -1;
+      for (var i=0; i<payments.length; i++) { if (String(payments[i].id)===sid) { idx=i; break; } }
+      if (change.type === 'removed') {
+        if (idx >= 0) { payments.splice(idx,1); changed=true; }
+      } else {
+        if (idx >= 0) { payments[idx]=r; } else { payments.push(r); changed=true; }
+      }
+    });
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+  }, function(e){ console.warn('payments listener:', e); });
+
+  // Listen to applications subcollection
+  _db.collection('salty').doc('applications').collection('a').onSnapshot(function(snap) {
+    var changed = false;
+    snap.docChanges().forEach(function(change) {
+      var r = change.doc.data(); if (!r.id) return;
+      var idx = -1;
+      for (var i=0; i<applications.length; i++) { if (applications[i].id===r.id) { idx=i; break; } }
+      if (change.type === 'removed') {
+        if (idx >= 0) { applications.splice(idx,1); changed=true; }
+      } else {
+        if (idx >= 0) {
+          var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
+          photoFields.forEach(function(f) {
+            var lp=(applications[idx][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+            var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+            if(rp.length>lp.length) r[f]=rp; else r[f]=lp;
+          });
+          applications[idx]=r;
+        } else { applications.push(r); changed=true; }
+      }
+    });
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+  }, function(e){ console.warn('apps listener:', e); });
+
+  // Listen to disbursements subcollection
+  _db.collection('salty').doc('disbursements').collection('d').onSnapshot(function(snap) {
+    var changed = false;
+    snap.docChanges().forEach(function(change) {
+      var r = change.doc.data(); if (!r.id) return;
+      var idx = -1;
+      for (var i=0; i<disbursements.length; i++) { if (disbursements[i].id===r.id) { idx=i; break; } }
+      if (change.type === 'removed') {
+        if (idx >= 0) { disbursements.splice(idx,1); changed=true; }
+      } else {
+        if (idx >= 0) { disbursements[idx]=r; } else { disbursements.push(r); changed=true; }
+      }
+    });
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+  }, function(e){ console.warn('disbs listener:', e); });
 
 } // end _startFirebaseListener
 
@@ -1431,19 +1635,49 @@ function parseCSVText(text) {
 var NORTH=['Nakadoli','Chingola','Mufulira','Chililabombwe'];
 var SOUTH=['Lusaka','Ndola','Luanshya','Kalulushi'];
 var ALL_B=['Nakadoli','Chingola','Mufulira','Chililabombwe','Lusaka','Ndola','Luanshya','Kalulushi'];
+// branches object is the source of truth — saved to Firebase
+// if loaded from storage it will override the hardcoded defaults above
+var branches={NORTH:['Nakadoli','Chingola','Mufulira','Chililabombwe'],SOUTH:['Lusaka','Ndola','Luanshya','Kalulushi']};
+function _rebuildBranches(){
+  NORTH=branches.NORTH.slice();
+  SOUTH=branches.SOUTH.slice();
+  ALL_B=NORTH.concat(SOUTH);
+  // Rebuild all branch-based user accounts
+  // Keep fixed accounts, regenerate branch ones
+  var fixed={admin:USERS.admin,crispine:USERS.crispine,faith:USERS.faith};
+  // Keep any custom user accounts (those not auto-generated)
+  for(var uk in USERS){
+    if(USERS[uk]._custom) fixed[uk]=USERS[uk];
+  }
+  for(var uk in USERS) delete USERS[uk];
+  for(var fk in fixed) USERS[fk]=fixed[fk];
+  for(var _i=0;_i<ALL_B.length;_i++){
+    var _b=ALL_B[_i],_r=NORTH.indexOf(_b)>=0?'NORTH':'SOUTH';
+    var _s=_b.toLowerCase().replace(/\s+/g,'').replace('chililabombwe','chili');
+    USERS[_s+'_manager']={pass:'manager123',display:'Manager ('+_b+')',role:'manager',region:_r,branch:_b};
+    USERS[_s+'_officer1']={pass:'officer123',display:'Officer 1 ('+_b+')',role:'officer',region:_r,branch:_b};
+    USERS[_s+'_officer2']={pass:'officer123',display:'Officer 2 ('+_b+')',role:'officer',region:_r,branch:_b};
+    USERS[_s+'_officer3']={pass:'officer123',display:'Officer 3 ('+_b+')',role:'officer',region:_r,branch:_b};
+    USERS[_s+'_assist']={pass:'assist123',display:'Assistant ('+_b+')',role:'assistant',region:_r,branch:_b};
+  }
+}
 var LDAYS=25,COOL=90;
 var USERS={
   admin:{pass:'admin123',display:'Admin',role:'admin',region:'ALL',branch:''},
   crispine:{pass:'north123',display:'Crispine Mwale',role:'credit_north',region:'NORTH',branch:''},
   faith:{pass:'south123',display:'Faith Zulu',role:'credit_south',region:'SOUTH',branch:''}
 };
-var _b,_r,_s;
-for(var _i=0;_i<ALL_B.length;_i++){
-  _b=ALL_B[_i];_r=NORTH.indexOf(_b)>=0?'NORTH':'SOUTH';_s=_b.toLowerCase().replace('chililabombwe','chili');
-  USERS[_s+'_officer1']={pass:'officer123',display:'Officer 1 ('+_b+')',role:'officer',region:_r,branch:_b};
-  USERS[_s+'_officer2']={pass:'officer123',display:'Officer 2 ('+_b+')',role:'officer',region:_r,branch:_b};
-  USERS[_s+'_officer3']={pass:'officer123',display:'Officer 3 ('+_b+')',role:'officer',region:_r,branch:_b};
-  USERS[_s+'_assist']={pass:'assist123',display:'Assistant ('+_b+')',role:'assistant',region:_r,branch:_b};
+_rebuildBranches();
+// Populate any branch <select> with current live branches
+function _fillBranchSelect(id, selectedVal, includeBlank){
+  var el=document.getElementById(id);if(!el)return;
+  var h=includeBlank?'<option value="">&#8212; Select &#8212;</option>':'';
+  h+='<optgroup label="Northern">';
+  for(var i=0;i<NORTH.length;i++)h+='<option'+(NORTH[i]===(selectedVal||'')?' selected':'')+'>'+esc(NORTH[i])+'</option>';
+  h+='</optgroup><optgroup label="Southern">';
+  for(var i=0;i<SOUTH.length;i++)h+='<option'+(SOUTH[i]===(selectedVal||'')?' selected':'')+'>'+esc(SOUTH[i])+'</option>';
+  h+='</optgroup>';
+  el.innerHTML=h;
 }
 var cu=null,abr='ALL',cpid=null,cidc=1010,lidc=2010;
 var clients=[],loans=[],payments=[],applications=[],disbursements=[],actLog=[];
@@ -1461,7 +1695,7 @@ function gLid(){return'SE-L'+(++lidc);}
 function gAid(){return'SE-A'+Date.now();}
 function daysB(d1,d2){return Math.floor((new Date(d2)-new Date(d1))/86400000);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function gBL(){if(!cu)return ALL_B;if(abr!=='ALL')return[abr];if(cu.role==='officer'&&cu.branch)return[cu.branch];if(cu.role==='assistant'&&cu.branch)return[cu.branch];if(cu.region==='NORTH')return NORTH;if(cu.region==='SOUTH')return SOUTH;return ALL_B;}
+function gBL(){if(!cu)return ALL_B;if(abr!=='ALL')return[abr];if(cu.role==='officer'&&cu.branch)return[cu.branch];if(cu.role==='assistant'&&cu.branch)return[cu.branch];if(cu.role==='manager'&&cu.branch)return[cu.branch];if(cu.region==='NORTH')return NORTH;if(cu.region==='SOUTH')return SOUTH;return ALL_B;}
 function fBr(arr){
   var bl=gBL(),out=[];
   var blLow=[];for(var x=0;x<bl.length;x++)blLow.push(bl[x].toLowerCase().trim());
@@ -1489,16 +1723,15 @@ function logAct(type,msg){actLog.unshift({type:type,msg:msg,user:cu?cu.display:'
 function isMine(a){
   if(!cu)return false;
   if(cu.role==='admin')return true;
-  // Credit controllers see ALL applications if branch is missing/unknown
-  // AND all applications from their region
   if(cu.role==='credit_north'){
-    if(!a.branch||a.branch==='')return true; // no branch set — show to all CCs
+    if(!a.branch||a.branch==='')return true;
     return NORTH.indexOf(a.branch)>=0||(a.region==='NORTH');
   }
   if(cu.role==='credit_south'){
-    if(!a.branch||a.branch==='')return true; // no branch set — show to all CCs
+    if(!a.branch||a.branch==='')return true;
     return SOUTH.indexOf(a.branch)>=0||(a.region==='SOUTH');
   }
+  if(cu.role==='manager')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():false;
   if(cu.role==='officer')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():a.officerUser===cu.username;
   if(cu.role==='assistant')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():true;
   return false;
@@ -1507,8 +1740,8 @@ function findC(id){for(var i=0;i<clients.length;i++){if(clients[i].id===id)retur
 function findL(id){for(var i=0;i<loans.length;i++){if(loans[i].id===id)return loans[i];}return null;}
 function findA(id){for(var i=0;i<applications.length;i++){if(applications[i].id===id)return applications[i];}return null;}
 function findD(id){for(var i=0;i<disbursements.length;i++){if(disbursements[i].id===id)return disbursements[i];}return null;}
-var RLABELS={admin:'Head Office Admin',credit_north:'Credit Controller North',credit_south:'Credit Controller South',officer:'Loan Officer',assistant:'Office Assistant'};
-var RCOLORS={admin:'#c0392b',credit_north:'#1a5276',credit_south:'#1e8449',officer:'#8e44ad',assistant:'#d4820a'};
+var RLABELS={admin:'Head Office Admin',credit_north:'Credit Controller North',credit_south:'Credit Controller South',manager:'Branch Manager',officer:'Loan Officer',assistant:'Office Assistant'};
+var RCOLORS={admin:'#c0392b',credit_north:'#1a5276',credit_south:'#1e8449',manager:'#6c3483',officer:'#8e44ad',assistant:'#d4820a'};
 function toggleAcc(el){var b=el.nextElementSibling;b.style.display=b.style.display==='block'?'none':'block';}
 function doLogin(){
   var u=document.getElementById('lu').value.trim();
@@ -1534,6 +1767,7 @@ function makeH(id){return function(){showTab(id);};}
 function buildNav(){
   var r=cu.role,tabs=[];
   if(r==='admin'||r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  else if(r==='manager'){tabs=[{id:'applications',label:'Applications',b:true}];}
   else if(r==='officer'){tabs=[{id:'myapps',label:'My Submissions',b:true},{id:'newapp',label:'+ Register Client'}];}
   else if(r==='assistant'){tabs=[{id:'disbursements',label:'Disbursements',b:true},{id:'myapps',label:'Approved Clients'}];}
   var nav=document.getElementById('navbar');nav.innerHTML='';
@@ -1551,14 +1785,21 @@ function updateBadges(){
     for(var i=0;i<applications.length;i++){
       var a=applications[i];
       if(a.officerUser!==cu.username)continue;
-      if(a.status==='submitted'||a.status==='approved')pa++;
+      if(a.status==='submitted'||a.status==='mgr_approved'||a.status==='approved')pa++;
+    }
+    pd=0;
+  } else if(cu&&cu.role==='manager'){
+    // Manager badge: submitted apps in their branch waiting for their approval
+    for(var i=0;i<applications.length;i++){
+      var a=applications[i];
+      if(a.status==='submitted'&&cu.branch&&a.branch.toLowerCase().trim()===cu.branch.toLowerCase().trim())pa++;
     }
     pd=0;
   } else if(cu&&cu.role==='assistant'){
-    // Applications badge: submitted apps in their branch (read only)
+    // Applications badge: mgr_approved apps in their branch (read only)
     for(var i=0;i<applications.length;i++){
       var a=applications[i];
-      if(a.status==='submitted'&&cu.branch&&a.branch===cu.branch)pa++;
+      if(a.status==='mgr_approved'&&cu.branch&&a.branch===cu.branch)pa++;
     }
     // Disbursements badge: approved apps ready for disbursement in their branch
     pd=0;
@@ -1575,8 +1816,8 @@ function updateBadges(){
       if(!inDisb)pd++;
     }
   } else {
-    // Credit controller / admin
-    for(var i=0;i<applications.length;i++){if(applications[i].status==='submitted'&&isMine(applications[i]))pa++;}
+    // Credit controller / admin — see mgr_approved apps waiting for their review
+    for(var i=0;i<applications.length;i++){if(applications[i].status==='mgr_approved'&&isMine(applications[i]))pa++;}
     for(var i=0;i<disbursements.length;i++){if(disbursements[i].status==='pending')pd++;}
   }
   var ba=document.getElementById('nb-myapps')||document.getElementById('nb-applications'),bd=document.getElementById('nb-disbursements');
@@ -1594,7 +1835,7 @@ function buildBranchBar(){
   bb.innerHTML=h;
 }
 function setBranch(b,el){abr=b;var bcs=document.querySelectorAll('.bc');for(var i=0;i<bcs.length;i++)bcs[i].classList.remove('ac');el.classList.add('ac');showHome();}
-function showHome(){if(cu.role==='officer')showTab('myapps');else if(cu.role==='assistant')showTab('disbursements');else showTab('dashboard');}
+function showHome(){if(cu.role==='officer')showTab('myapps');else if(cu.role==='assistant')showTab('disbursements');else if(cu.role==='manager')showTab('applications');else showTab('dashboard');}
 function showTab(n){
   window._currentTab = n;
   var nts=document.querySelectorAll('.nt');for(var i=0;i<nts.length;i++)nts[i].classList.remove('ac');
@@ -1614,7 +1855,7 @@ function showTab(n){
   else if(n==='datamanage')renderDataManage(mc);
   updateBadges();
 }
-function openProfile(){document.getElementById('pname').value=cu.display;document.getElementById('prole').value=RLABELS[cu.role]||cu.role;document.getElementById('pbranch').value=cu.branch||'';document.getElementById('puser').value='';document.getElementById('ppass').value='';document.getElementById('ppass2').value='';document.getElementById('profmod').classList.add('op');}
+function openProfile(){document.getElementById('pname').value=cu.display;document.getElementById('prole').value=RLABELS[cu.role]||cu.role;_fillBranchSelect('pbranch',cu.branch||'',true);document.getElementById('pbranch').value=cu.branch||'';document.getElementById('puser').value='';document.getElementById('ppass').value='';document.getElementById('ppass2').value='';document.getElementById('profmod').classList.add('op');}
 function saveProfile(){var name=document.getElementById('pname').value.trim(),nu=document.getElementById('puser').value.trim(),pass=document.getElementById('ppass').value,pass2=document.getElementById('ppass2').value,branch=document.getElementById('pbranch').value;if(pass&&pass!==pass2){toast('Passwords do not match.');return;}if(nu&&nu!==cu.username&&USERS[nu]){toast('Username already taken.');return;}if(name)cu.display=name;if(branch)cu.branch=branch;if(nu&&nu!==cu.username){USERS[nu]=USERS[cu.username];delete USERS[cu.username];cu.username=nu;}USERS[cu.username].display=cu.display;if(branch)USERS[cu.username].branch=branch;if(pass)USERS[cu.username].pass=pass;save();closeModal('profmod');toast('Profile updated!');}
 
 function renderMyApps(mc){
@@ -1624,12 +1865,13 @@ function renderMyApps(mc){
     var mine=[];
     for(var i=0;i<applications.length;i++){if(applications[i].officerUser===cu.username)mine.push(applications[i]);}
     mine.sort(function(a,b){return (b.createdAt||'')>(a.createdAt||'')?1:-1;});
-    var counts={draft:0,submitted:0,approved:0,disbursed:0,rejected:0};
+    var counts={draft:0,submitted:0,mgr_approved:0,approved:0,disbursed:0,rejected:0};
     for(var i=0;i<mine.length;i++)counts[mine[i].status]=(counts[mine[i].status]||0)+1;
+    var inReview=counts.submitted+counts.mgr_approved;
     // Pipeline summary
     h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
     h+='<div style="flex:1;min-width:70px;background:#fff;border:1px solid var(--bd);border-top:3px solid #aaa;border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--tx)">'+counts.draft+'</div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;margin-top:2px">Draft</div></div>';
-    h+='<div style="flex:1;min-width:70px;background:#fff;border:1px solid var(--bd);border-top:3px solid var(--wn);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--wn)">'+counts.submitted+'</div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;margin-top:2px">Under Review</div></div>';
+    h+='<div style="flex:1;min-width:70px;background:#fff;border:1px solid var(--bd);border-top:3px solid var(--wn);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--wn)">'+inReview+'</div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;margin-top:2px">Under Review</div></div>';
     h+='<div style="flex:1;min-width:70px;background:#fff;border:1px solid var(--bd);border-top:3px solid var(--ok);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--ok)">'+counts.approved+'</div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;margin-top:2px">Approved</div></div>';
     h+='<div style="flex:1;min-width:70px;background:#fff;border:1px solid var(--bd);border-top:3px solid var(--in);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--in)">'+counts.disbursed+'</div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;margin-top:2px">Disbursed</div></div>';
     if(counts.rejected)h+='<div style="flex:1;min-width:70px;background:#fff;border:1px solid var(--bd);border-top:3px solid var(--r);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--r)">'+counts.rejected+'</div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;margin-top:2px">Rejected</div></div>';
@@ -1639,8 +1881,8 @@ function renderMyApps(mc){
     if(!mine.length)h+='<tr><td colspan="7"><div class="es"><div class="ei">&#128203;</div><div class="et">No registrations yet.<br><small style="color:var(--mu)">Tap &quot;+ Register New Client&quot; to begin.</small></div></div></td></tr>';
     for(var i=0;i<mine.length;i++){
       var a=mine[i],isN=NORTH.indexOf(a.branch)>=0;
-      var sc=a.status==='submitted'?'bgo':a.status==='approved'?'bgg':a.status==='draft'?'bgx':a.status==='disbursed'?'bgb':'bgr';
-      var slabel=a.status==='submitted'?'Under Review':a.status==='approved'?'Approved ✓':a.status==='disbursed'?'Disbursed ✓':a.status==='draft'?'Draft':a.status==='rejected'?'Rejected ✗':a.status;
+      var sc=a.status==='submitted'?'bgo':a.status==='mgr_approved'?'bgo':a.status==='approved'?'bgg':a.status==='draft'?'bgx':a.status==='disbursed'?'bgb':'bgr';
+      var slabel=a.status==='submitted'?'At Manager':a.status==='mgr_approved'?'Under CC Review':a.status==='approved'?'Approved ✓':a.status==='disbursed'?'Disbursed ✓':a.status==='draft'?'Draft':a.status==='rejected'?'Rejected ✗':a.status;
       h+='<tr>';
       h+='<td style="font-family:monospace;font-size:9px;color:var(--mu)">'+esc(a.id.substring(0,10))+'</td>';
       h+='<td><strong>'+esc(a.name)+'</strong>';
@@ -1705,7 +1947,13 @@ function renderDashboard(mc){
   var fc=fBr(clients),fl=[],al=[];
   for(var i=0;i<loans.length;i++){var lc=findC(loans[i].clientId);if(lc&&gBL().indexOf(lc.branch)>=0){fl.push(loans[i]);if(loans[i].status==='Active')al.push(loans[i]);}}
   var tC=0,tD=0;for(var i=0;i<fl.length;i++){tC+=gTP(fl[i].id);tD+=Number(fl[i].amountGiven||0);}
-  var pa=0,pd=0;for(var i=0;i<applications.length;i++){if(applications[i].status==='submitted'&&isMine(applications[i]))pa++;}for(var i=0;i<disbursements.length;i++){if(disbursements[i].status==='pending')pd++;}
+  var pa=0,pd=0;
+  if(canDo('manager')){
+    for(var i=0;i<applications.length;i++){if(applications[i].status==='submitted'&&isMine(applications[i]))pa++;}
+  } else {
+    for(var i=0;i<applications.length;i++){if(applications[i].status==='mgr_approved'&&isMine(applications[i]))pa++;}
+  }
+  for(var i=0;i<disbursements.length;i++){if(disbursements[i].status==='pending')pd++;}
   var h='<div class="sg">';
   h+='<div class="sc c1"><div class="si">&#128101;</div><div class="sl">Total Clients</div><div class="sv">'+fc.length+'</div><div class="ss">Registered borrowers</div></div>';
   h+='<div class="sc c2"><div class="si">&#128176;</div><div class="sl">Active Loans</div><div class="sv">'+al.length+'</div></div>';
@@ -1721,35 +1969,109 @@ function renderDashboard(mc){
 function renderApplications(mc){
   var myApps=[];
   for(var i=0;i<applications.length;i++){if(isMine(applications[i]))myApps.push(applications[i]);}
+  var statusOrder={submitted:0,mgr_approved:1,approved:2,disbursed:3,draft:4,rejected:5};
   myApps.sort(function(a,b){
-    var order={submitted:0,approved:1,disbursed:2,draft:3,rejected:4};
-    var od=(order[a.status]||0)-(order[b.status]||0);
+    var od=(statusOrder[a.status]||0)-(statusOrder[b.status]||0);
     if(od!==0)return od;
     return (b.createdAt||'')>(a.createdAt||'')?1:-1;
   });
   var all=myApps;
   var h='';
 
-  // Assistant: see submitted apps waiting for CC
-  if(canDo('assistant')){
-    var waiting=[];
-    for(var i=0;i<all.length;i++){if(all[i].status==='submitted')waiting.push(all[i]);}
-    if(waiting.length>0){
-      h+='<div style="background:linear-gradient(135deg,#e67e22,#f39c12);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><strong>'+waiting.length+' Application'+(waiting.length>1?'s':'')+' Awaiting Credit Controller Approval</strong><div style="font-size:11px;opacity:.85;margin-top:2px">These will appear in Disbursements once approved</div></div><span style="font-size:22px">&#128336;</span></div>';
-      h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">&#9203; Pending Approval ('+waiting.length+')</span></div><div class="cdb">';
-      for(var i=0;i<waiting.length;i++){var wa=waiting[i];h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd)"><div><div style="font-weight:600">'+esc(wa.name)+'</div><div style="font-size:10px;color:var(--mu)">'+esc(wa.branch)+' &middot; Officer: '+esc(wa.officerName||wa.officerUser||'')+'</div></div><div style="text-align:right"><div style="font-family:monospace;font-size:12px;color:var(--wn);font-weight:700">'+zmw(wa.amountRequested)+'</div></div></div>';}
-      h+='</div></div>';
+  // ── MANAGER VIEW ───────────────────────────────────────────────────────────
+  if(canDo('manager')){
+    var pending=all.filter(function(a){return a.status==='submitted';});
+    var others=all.filter(function(a){return a.status!=='submitted';});
+
+    if(pending.length>0){
+      h+='<div style="background:linear-gradient(135deg,#6c3483,#9b59b6);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">';
+      h+='<div><strong>'+pending.length+' Application'+(pending.length>1?'s':'')+' Awaiting Your Review</strong>';
+      h+='<div style="font-size:11px;opacity:.85;margin-top:2px">Review and approve before forwarding to Credit Controller</div></div><span style="font-size:24px">&#128203;</span></div>';
+      h+='<div style="margin-bottom:14px">';
+      for(var i=0;i<pending.length;i++){
+        var a=pending[i];
+        var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]);
+        h+='<div style="background:#fff;border:1px solid var(--bd);border-left:4px solid #9b59b6;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">';
+        h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+        h+='<div><div style="font-size:16px;font-weight:800;color:var(--r2)">'+esc(a.name)+'</div>';
+        h+='<div style="font-size:11px;color:var(--mu);margin-top:2px">'+esc(a.nrc||'—')+'&nbsp;&#183;&nbsp;'+esc(a.phone||'—')+'</div>';
+        h+='<div style="margin-top:4px"><span style="font-size:11px;color:var(--mu)">Officer: '+esc(a.officerName||a.officerUser||'')+'</span></div></div>';
+        h+='<div style="text-align:right"><div style="font-size:20px;font-weight:800;color:#9b59b6">'+zmw(a.amountRequested)+'</div>';
+        h+='<div style="font-size:10px;color:var(--mu)">Submitted '+fmtD(a.submittedAt?a.submittedAt.substring(0,10):'')+'</div></div></div>';
+        if(a.colRows&&a.colRows.length){
+          h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);font-size:11px;color:var(--mu)">';
+          h+='<strong style="font-size:10px;text-transform:uppercase;letter-spacing:.4px">Collateral: </strong>';
+          for(var ci=0;ci<a.colRows.length;ci++){h+=esc(a.colRows[ci].item)+(ci<a.colRows.length-1?', ':'');}
+          h+='</div>';
+        }
+        if(allPhotos.length){
+          h+='<div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">';
+          for(var pi=0;pi<Math.min(4,allPhotos.length);pi++){h+='<img src="'+(allPhotos[pi].preview||allPhotos[pi])+'" style="height:50px;width:50px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">';}
+          if(allPhotos.length>4)h+='<div style="height:50px;width:50px;background:var(--s2);border-radius:6px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mu)">+'+(allPhotos.length-4)+'</div>';
+          h+='</div>';
+        }
+        h+='<div style="display:flex;gap:8px;margin-top:12px">';
+        h+='<button class="btn" style="flex:1;background:var(--s2);color:var(--tx);border:1px solid var(--bd)" onclick="viewApp(\''+a.id+'\')">&#128203; View Full Application</button>';
+        h+='<button class="btn btr" style="padding:8px 14px" onclick="mgrDecide(\''+a.id+'\',\'reject\')">&#10007; Reject</button>';
+        h+='<button class="btn" style="padding:8px 14px;font-weight:700;background:#9b59b6;color:#fff;border:none" onclick="mgrDecide(\''+a.id+'\',\'approve\')">&#10003; Approve & Forward</button>';
+        h+='</div></div>';
+      }
+      h+='</div>';
+    } else {
+      h+='<div style="background:rgba(155,89,182,.08);border:1.5px solid #9b59b6;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#6c3483">&#10003; No pending applications — all caught up!</div>';
     }
+
+    if(others.length){
+      h+='<div class="cd"><div class="cdh"><span class="cdt">All Applications ('+all.length+' total)</span></div>';
+      h+='<div class="tw"><table><thead><tr><th>Client</th><th>Amount</th><th>Officer</th><th>Status</th><th></th></tr></thead><tbody>';
+      for(var i=0;i<others.length;i++){
+        var a=others[i];
+        var sc=a.status==='mgr_approved'?'bgo':a.status==='approved'?'bgg':a.status==='disbursed'?'bgb':a.status==='draft'?'bgx':'bgr';
+        var sl=a.status==='mgr_approved'?'Forwarded to CC':a.status==='approved'?'CC Approved':a.status==='disbursed'?'Disbursed':a.status==='rejected'?'Rejected':'Draft';
+        h+='<tr>';
+        h+='<td><strong>'+esc(a.name)+'</strong></td>';
+        h+='<td style="font-family:monospace;font-size:11px">'+zmw(a.amountRequested)+'</td>';
+        h+='<td style="font-size:11px;color:var(--mu)">'+esc(a.officerName||'')+'</td>';
+        h+='<td><span class="bg '+sc+'" style="font-size:9px">'+sl+'</span></td>';
+        h+='<td><button class="ab" onclick="viewApp(\''+a.id+'\')">View</button></td>';
+        h+='</tr>';
+      }
+      h+='</tbody></table></div></div>';
+    }
+    if(!all.length){h+='<div class="cd"><div style="padding:30px;text-align:center"><div style="font-size:40px;margin-bottom:10px">&#128203;</div><div style="font-weight:600;color:var(--mu)">No applications yet</div><div style="font-size:12px;color:var(--mu);margin-top:4px">Loan officer applications will appear here for your review</div></div></div>';}
+    mc.innerHTML=h;
+    return;
   }
 
-  // Credit controller: show pending count banner + CARDS for submitted
+  // ── ASSISTANT VIEW ─────────────────────────────────────────────────────────
+  if(canDo('assistant')){
+    var waiting=all.filter(function(a){return a.status==='submitted'||a.status==='mgr_approved';});
+    if(waiting.length>0){
+      h+='<div style="background:linear-gradient(135deg,#e67e22,#f39c12);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><strong>'+waiting.length+' Application'+(waiting.length>1?'s':'')+' In Review Pipeline</strong><div style="font-size:11px;opacity:.85;margin-top:2px">These will appear in Disbursements once CC approved</div></div><span style="font-size:22px">&#128336;</span></div>';
+      h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">&#9203; In Pipeline ('+waiting.length+')</span></div><div class="cdb">';
+      for(var i=0;i<waiting.length;i++){
+        var wa=waiting[i];
+        var wlabel=wa.status==='submitted'?'Awaiting Manager':'Awaiting CC';
+        var wcls=wa.status==='submitted'?'color:#9b59b6':'color:var(--wn)';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd)">';
+        h+='<div><div style="font-weight:600">'+esc(wa.name)+'</div>';
+        h+='<div style="font-size:10px;color:var(--mu)">'+esc(wa.branch)+' &middot; Officer: '+esc(wa.officerName||wa.officerUser||'')+'</div></div>';
+        h+='<div style="text-align:right"><div style="font-family:monospace;font-size:12px;font-weight:700">'+zmw(wa.amountRequested)+'</div>';
+        h+='<div style="font-size:9px;'+wcls+'">'+wlabel+'</div></div></div>';
+      }
+      h+='</div></div>';
+    }
+    mc.innerHTML=h||'<div class="cd"><div style="padding:30px;text-align:center"><div style="font-size:40px">&#128203;</div><div style="font-weight:600;color:var(--mu)">No active applications</div></div></div>';
+    return;
+  }
+
+  // ── CREDIT CONTROLLER / ADMIN VIEW ────────────────────────────────────────
   if(canDo('credit_north','credit_south','admin')){
-    var submitted=all.filter(function(a){return a.status==='submitted';});
-    var others=all.filter(function(a){return a.status!=='submitted';});
+    var submitted=all.filter(function(a){return a.status==='mgr_approved';});
+    var others=all.filter(function(a){return a.status!=='mgr_approved';});
     if(submitted.length>0){
       h+='<div style="background:linear-gradient(135deg,var(--wn),#e67e22);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">';
-      h+='<div><strong>'+submitted.length+' Application'+(submitted.length>1?'s':'')+' Awaiting Your Review</strong><div style="font-size:11px;opacity:.85;margin-top:2px">Review each client thoroughly before approving</div></div><span style="font-size:24px">&#128203;</span></div>';
-      // Show submitted apps as CARDS
+      h+='<div><strong>'+submitted.length+' Application'+(submitted.length>1?'s':'')+' Awaiting Your Review</strong><div style="font-size:11px;opacity:.85;margin-top:2px">Manager pre-approved — review and make final decision</div></div><span style="font-size:24px">&#128203;</span></div>';
       h+='<div style="margin-bottom:14px">';
       for(var i=0;i<submitted.length;i++){
         var a=submitted[i],isN=NORTH.indexOf(a.branch)>=0;
@@ -1757,25 +2079,22 @@ function renderApplications(mc){
         h+='<div style="background:#fff;border:1px solid var(--bd);border-left:4px solid var(--wn);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">';
         h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
         h+='<div><div style="font-size:16px;font-weight:800;color:var(--r2)">'+esc(a.name)+'</div>';
-        h+='<div style="font-size:11px;color:var(--mu);margin-top:2px">'+esc(a.nrc||'—')+'  &nbsp;&#183;&nbsp;  '+esc(a.phone||'—')+'</div>';
-        h+='<div style="margin-top:4px"><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(a.branch)+'</span>&nbsp;<span style="font-size:11px;color:var(--mu)">Officer: '+esc(a.officerName||'')+'</span></div></div>';
+        h+='<div style="font-size:11px;color:var(--mu);margin-top:2px">'+esc(a.nrc||'—')+'&nbsp;&#183;&nbsp;'+esc(a.phone||'—')+'</div>';
+        h+='<div style="margin-top:4px"><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(a.branch)+'</span>&nbsp;<span style="font-size:11px;color:var(--mu)">Officer: '+esc(a.officerName||'')+'</span>&nbsp;<span style="font-size:10px;color:#9b59b6">&#10003; Mgr: '+esc(a.mgrApprovedBy||'')+'</span></div></div>';
         h+='<div style="text-align:right"><div style="font-size:20px;font-weight:800;color:var(--wn)">'+zmw(a.amountRequested)+'</div>';
         h+='<div style="font-size:10px;color:var(--mu)">Submitted '+fmtD(a.submittedAt?a.submittedAt.substring(0,10):'')+'</div></div></div>';
-        // Mini collateral preview
         if(a.colRows&&a.colRows.length){
           h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);font-size:11px;color:var(--mu)">';
           h+='<strong style="font-size:10px;text-transform:uppercase;letter-spacing:.4px">Collateral: </strong>';
           for(var ci=0;ci<a.colRows.length;ci++){h+=esc(a.colRows[ci].item)+(ci<a.colRows.length-1?', ':'');}
           h+='</div>';
         }
-        // Photo thumbnails preview
         if(allPhotos.length){
           h+='<div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">';
           for(var pi=0;pi<Math.min(4,allPhotos.length);pi++){h+='<img src="'+(allPhotos[pi].preview||allPhotos[pi])+'" style="height:50px;width:50px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">';}
-          if(allPhotos.length>4)h+='<div style="height:50px;width:50px;background:var(--s2);border-radius:6px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mu)">+'+( allPhotos.length-4)+'</div>';
+          if(allPhotos.length>4)h+='<div style="height:50px;width:50px;background:var(--s2);border-radius:6px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mu)">+'+(allPhotos.length-4)+'</div>';
           h+='</div>';
         }
-        // Action buttons
         h+='<div style="display:flex;gap:8px;margin-top:12px">';
         h+='<button class="btn" style="flex:1;background:var(--s2);color:var(--tx);border:1px solid var(--bd)" onclick="viewApp(\''+a.id+'\')">&#128203; View Full Application</button>';
         h+='<button class="btn btr" style="padding:8px 14px" onclick="quickDecide(\''+a.id+'\',\'reject\')">&#10007; Reject</button>';
@@ -1784,37 +2103,37 @@ function renderApplications(mc){
       }
       h+='</div>';
     }
-    // Show all other apps in a compact table
     if(others.length){
       h+='<div class="cd"><div class="cdh"><span class="cdt">All Applications ('+all.length+' total)</span></div>';
       h+='<div class="tw"><table><thead><tr><th>Client</th><th>Branch</th><th>Amount</th><th>Officer</th><th>Status</th><th></th></tr></thead><tbody>';
       for(var i=0;i<others.length;i++){
         var a=others[i],isN=NORTH.indexOf(a.branch)>=0;
-        var sc=a.status==='approved'?'bgg':a.status==='disbursed'?'bgb':a.status==='draft'?'bgx':'bgr';
+        var sc=a.status==='approved'?'bgg':a.status==='disbursed'?'bgb':a.status==='submitted'?'bgo':a.status==='draft'?'bgx':'bgr';
+        var sl=a.status==='submitted'?'At Manager':a.status;
         h+='<tr>';
         h+='<td><strong>'+esc(a.name)+'</strong></td>';
         h+='<td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(a.branch)+'</span></td>';
         h+='<td style="font-family:monospace;font-size:11px">'+zmw(a.amountRequested)+'</td>';
         h+='<td style="font-size:11px;color:var(--mu)">'+esc(a.officerName||'')+'</td>';
-        h+='<td><span class="bg '+sc+'" style="font-size:9px">'+a.status+'</span></td>';
+        h+='<td><span class="bg '+sc+'" style="font-size:9px">'+sl+'</span></td>';
         h+='<td><button class="ab" onclick="viewApp(\''+a.id+'\')">View</button>';
         if(canDo('admin','credit_north','credit_south'))h+='<button class="ab" style="color:var(--r)" onclick="confirmDelApp(\''+a.id+'\')">&#128465;</button>';
         h+='</td></tr>';
       }
       h+='</tbody></table></div></div>';
     }
-    if(!all.length){h+='<div class="cd"><div style="padding:30px;text-align:center"><div style="font-size:40px;margin-bottom:10px">&#128203;</div><div style="font-weight:600;color:var(--mu)">No applications yet</div><div style="font-size:12px;color:var(--mu);margin-top:4px">Applications from Loan Officers will appear here for review</div></div></div>';}
+    if(!all.length){h+='<div class="cd"><div style="padding:30px;text-align:center"><div style="font-size:40px;margin-bottom:10px">&#128203;</div><div style="font-weight:600;color:var(--mu)">No applications yet</div><div style="font-size:12px;color:var(--mu);margin-top:4px">Applications from Loan Officers will appear here after manager review</div></div></div>';}
     mc.innerHTML=h;
     return;
   }
 
-  // Officer view of applications (legacy - shouldn't reach here in new flow but keep as fallback)
+  // Officer fallback view
   h+='<div class="cd"><div class="cdh"><span class="cdt">Applications</span></div>';
   h+='<div class="tw"><table><thead><tr><th>Client</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!all.length)h+='<tr><td colspan="4"><div class="es"><div class="et">No applications</div></div></td></tr>';
   for(var i=0;i<all.length;i++){
     var a=all[i];
-    var sc=a.status==='submitted'?'bgo':a.status==='approved'?'bgg':a.status==='draft'?'bgx':a.status==='disbursed'?'bgb':'bgr';
+    var sc=a.status==='submitted'?'bgo':a.status==='mgr_approved'?'bgo':a.status==='approved'?'bgg':a.status==='draft'?'bgx':a.status==='disbursed'?'bgb':'bgr';
     h+='<tr><td><strong>'+esc(a.name)+'</strong></td><td style="font-family:monospace;font-size:11px">'+zmw(a.amountRequested)+'</td><td><span class="bg '+sc+'" style="font-size:9px">'+a.status+'</span></td>';
     h+='<td><button class="ab" onclick="viewApp(\''+a.id+'\',\'renderApplications(document.getElementById(\\\'mainct\\\'))\')">View</button>';
     if(a.status==='draft')h+='<button class="btn btr bts" style="font-size:10px" onclick="submitApp(\''+a.id+'\')">Submit</button>';
@@ -1829,7 +2148,9 @@ function openAppModal(){
   document.getElementById('appdateshow').textContent=fmtD(td_());document.getElementById('apdate').value=td_();document.getElementById('apofficer').value=cu?cu.display:'';document.getElementById('apamt').value='';document.getElementById('apdue').value='';document.getElementById('apdaily').value='';
   var flds=['apn','apnrc','apph','apocc','apadr','apbadr','apspn','apspnrc','apspph','apg1n','apg1nrc','apg1ph','apg1ba','apg1ha','apg2n','apg2nrc','apg2ph','apg2ba','apg2ha'];
   for(var i=0;i<flds.length;i++){var el=document.getElementById(flds[i]);if(el)el.value='';}
-  var brEl=document.getElementById('apbr');brEl.value=(cu&&cu.branch)?cu.branch:'';brEl.disabled=!!(cu&&cu.role==='officer'&&cu.branch);
+  var brEl=document.getElementById('apbr');
+  _fillBranchSelect('apbr', (cu&&cu.branch)?cu.branch:'', true);
+  brEl.value=(cu&&cu.branch)?cu.branch:'';brEl.disabled=!!(cu&&cu.role==='officer'&&cu.branch);
   document.getElementById('coltbody').innerHTML='';document.getElementById('g1tbl').innerHTML='';document.getElementById('g2tbl').innerHTML='';
   addColRow();addG1Row();addG2Row();
   initSig('sig-client');initSig('sig-spouse');initSig('sig-g1');initSig('sig-g2');
@@ -1978,7 +2299,19 @@ function saveApp(isDraft) {
   if (!isDraft) _uploadPhotosInBackground(appId);
 }
 
-function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);save();toast('Submitted to Credit Controller!');renderMyApps(document.getElementById('mainct'));}
+function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
+function mgrDecide(id,decision){
+  var a=findA(id);if(!a)return;
+  if(decision==='reject'){
+    var notes=prompt('Reason for rejection (optional):','');
+    a.status='rejected';a.amountApproved=0;a.decisionNotes=notes||'';a.decidedAt=now_();a.decidedBy=cu.display;a.mgrDecidedBy=cu.display;
+    logAct('act','Manager rejected application for '+a.name);save();toast('Application rejected.');showTab('applications');
+  } else {
+    a.status='mgr_approved';a.mgrApprovedAt=now_();a.mgrApprovedBy=cu.display;
+    logAct('act','Manager approved application for '+a.name+' — forwarded to CC');save();
+    toast('Approved! Forwarded to Credit Controller ✓');showTab('applications');
+  }
+}
 function openApproval(id){
   aprvId=id;var a=findA(id);if(!a)return;
   document.getElementById('aprvamt').value=a.amountRequested;
@@ -2019,9 +2352,9 @@ function viewApp(id,backFn){
   h+='<div style="text-align:right"><span class="bg '+sc+'" style="font-size:11px;padding:4px 10px">'+a.status.toUpperCase()+'</span>';
   h+='<div style="font-size:10px;opacity:.7;margin-top:6px">Officer: '+esc(a.officerName||a.officerUser||'')+'</div>';
   h+='<div style="font-size:10px;opacity:.7">Submitted: '+fmtD(a.submittedAt?a.submittedAt.substring(0,10):'')+'</div></div></div></div>';
-  // Credit decision bar if approved/rejected
-  if(a.status==='approved'){h+='<div style="background:rgba(30,132,73,.1);border:1.5px solid var(--ok);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><div style="font-weight:700;color:var(--ok);font-size:15px">&#10003; APPROVED</div><div style="font-size:12px;color:var(--mu)">By '+esc(a.decidedBy||'')+' on '+fmtD(a.decidedAt?a.decidedAt.substring(0,10):'')+'</div>'+(a.decisionNotes?'<div style="font-size:12px;margin-top:4px">Notes: '+esc(a.decisionNotes)+'</div>':'')+'</div><div style="font-size:22px;font-weight:800;color:var(--ok)">'+zmw(a.amountApproved||a.amountRequested)+'</div></div>';}
-  if(a.status==='rejected'){h+='<div style="background:rgba(192,57,43,.08);border:1.5px solid var(--r);border-radius:10px;padding:12px 16px;margin-bottom:14px"><div style="font-weight:700;color:var(--r);font-size:15px">&#10007; REJECTED</div><div style="font-size:12px;color:var(--mu)">By '+esc(a.decidedBy||'')+' on '+fmtD(a.decidedAt?a.decidedAt.substring(0,10):'')+'</div>'+(a.decisionNotes?'<div style="font-size:12px;margin-top:4px">Reason: '+esc(a.decisionNotes)+'</div>':'')+'</div>';}
+  if(a.status==='approved'){h+='<div style="background:rgba(30,132,73,.1);border:1.5px solid var(--ok);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><div style="font-weight:700;color:var(--ok);font-size:15px">&#10003; APPROVED BY CC</div><div style="font-size:12px;color:var(--mu)">By '+esc(a.decidedBy||'')+' on '+fmtD(a.decidedAt?a.decidedAt.substring(0,10):'')+'</div>'+(a.mgrApprovedBy?'<div style="font-size:11px;color:#9b59b6;margin-top:2px">&#10003; Pre-approved by Manager: '+esc(a.mgrApprovedBy)+'</div>':'')+(a.decisionNotes?'<div style="font-size:12px;margin-top:4px">Notes: '+esc(a.decisionNotes)+'</div>':'')+'</div><div style="font-size:22px;font-weight:800;color:var(--ok)">'+zmw(a.amountApproved||a.amountRequested)+'</div></div>';}
+  if(a.status==='mgr_approved'){h+='<div style="background:rgba(155,89,182,.08);border:1.5px solid #9b59b6;border-radius:10px;padding:12px 16px;margin-bottom:14px"><div style="font-weight:700;color:#9b59b6;font-size:15px">&#10003; MANAGER APPROVED — Awaiting CC</div><div style="font-size:12px;color:var(--mu)">By '+esc(a.mgrApprovedBy||'')+' on '+fmtD(a.mgrApprovedAt?a.mgrApprovedAt.substring(0,10):'')+'</div></div>';}
+  if(a.status==='rejected'){h+='<div style="background:rgba(192,57,43,.08);border:1.5px solid var(--r);border-radius:10px;padding:12px 16px;margin-bottom:14px"><div style="font-weight:700;color:var(--r);font-size:15px">&#10007; REJECTED</div><div style="font-size:12px;color:var(--mu)">By '+esc(a.decidedBy||a.mgrDecidedBy||'')+' on '+fmtD(a.decidedAt?a.decidedAt.substring(0,10):'')+'</div>'+(a.decisionNotes?'<div style="font-size:12px;margin-top:4px">Reason: '+esc(a.decisionNotes)+'</div>':'')+'</div>';}
   // Section 1 — Client Info
   h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128100; Client Information</span></div><div class="cdb">';
   h+='<div class="fr" style="gap:10px"><div style="flex:1">';
@@ -2077,8 +2410,15 @@ function viewApp(id,backFn){
   if(a.clientSig){
     h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#9997; Client Signature</span></div><div style="padding:12px 14px"><img src="'+a.clientSig+'" style="max-width:100%;height:80px;border:1px solid var(--bd);border-radius:8px"></div></div>';
   }
+  // Action buttons for managers
+  if(canDo('manager')&&a.status==='submitted'){
+    h+='<div style="display:flex;gap:10px;margin-top:4px;margin-bottom:16px">';
+    h+='<button class="btn btr" style="flex:1;padding:14px" onclick="mgrDecide(\''+a.id+'\',\'reject\')">&#10007; Reject</button>';
+    h+='<button class="btn" style="flex:1;padding:14px;font-weight:700;background:#9b59b6;color:#fff;border:none" onclick="mgrDecide(\''+a.id+'\',\'approve\')">&#10003; Approve & Forward to CC</button>';
+    h+='</div>';
+  }
   // Action buttons for credit controllers
-  if(canDo('credit_north','credit_south','admin')&&a.status==='submitted'){
+  if(canDo('credit_north','credit_south','admin')&&a.status==='mgr_approved'){
     h+='<div style="display:flex;gap:10px;margin-top:4px;margin-bottom:16px">';
     h+='<button class="btn btr" style="flex:1;padding:14px" onclick="quickDecide(\''+a.id+'\',\'reject\')">&#10007; Reject</button>';
     h+='<button class="btn btk" style="flex:1;padding:14px" onclick="openApproval(\''+a.id+'\')">&#10003; Approve / Adjust Amount</button>';
@@ -2200,9 +2540,9 @@ function submitDisbList(){
     dcs.push({appId:a.id,name:a.name,branch:a.branch,nrc:a.nrc,amount:a.amountApproved||a.amountRequested||0});
   }
   // Use first client branch as primary, or 'Multiple' if mixed
-  var branches=[];
-  for(var i=0;i<dcs.length;i++){if(branches.indexOf(dcs[i].branch)<0)branches.push(dcs[i].branch);}
-  var disbBranch=branches.length===1?branches[0]:'Multiple';
+  var disbBranches=[];
+  for(var i=0;i<dcs.length;i++){if(disbBranches.indexOf(dcs[i].branch)<0)disbBranches.push(dcs[i].branch);}
+  var disbBranch=disbBranches.length===1?disbBranches[0]:'Multiple';
   disbursements.push({id:'SE-D'+Date.now(),date:date,branch:disbBranch,status:'pending',submittedBy:cu.display,submittedAt:now_(),clients:dcs});
   logAct('act','Submitted disbursement list &#8212; '+sel.length+' clients');
   save();closeModal('disbmod');
@@ -3525,6 +3865,60 @@ function renderDataManage(mc){
   var sCodes=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'];
   var sCount=0;for(var i=0;i<clients.length;i++){if(sCodes.indexOf(clients[i].id)>=0)sCount++;}
   var h='<div style="background:linear-gradient(135deg,#1a0a0a,#3d1515);border-radius:14px;padding:20px 24px;margin-bottom:16px;color:#fff"><div style="font-size:20px;font-weight:700;margin-bottom:4px">Data Management</div><div style="font-size:12px;opacity:.7">Manage, reset or clear system data. All actions are permanent.</div></div>';
+
+  // ── BRANCH MANAGEMENT ────────────────────────────────────────────────────
+  h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--in)"><div class="cdh" style="background:rgba(52,152,219,.05)"><span class="cdt" style="color:var(--in)">&#127970; Branch Management</span></div><div class="cdb">';
+  h+='<div style="font-size:12px;color:var(--mu);margin-bottom:14px">Add or remove branches. New branches get manager, 3 officer, and assistant logins automatically.</div>';
+
+  // Current branches table
+  h+='<div style="margin-bottom:16px"><div style="display:flex;gap:10px;flex-wrap:wrap">';
+  // NORTH
+  h+='<div style="flex:1;min-width:200px"><div style="font-size:10px;font-weight:700;color:var(--in);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">&#9650; NORTH REGION</div>';
+  for(var i=0;i<NORTH.length;i++){
+    var bn=NORTH[i],hasCli=false;
+    for(var j=0;j<clients.length;j++){if((clients[j].branch||'').toLowerCase()===bn.toLowerCase()){hasCli=true;break;}}
+    var _s=bn.toLowerCase().replace(/\s+/g,'').replace('chililabombwe','chili');
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(52,152,219,.06);border:1px solid rgba(52,152,219,.2);border-radius:8px;margin-bottom:6px">';
+    h+='<div><div style="font-weight:600;font-size:13px">'+esc(bn)+'</div>';
+    h+='<div style="font-size:10px;color:var(--mu)">Mgr: '+_s+'_manager &nbsp;|&nbsp; Pass: manager123</div></div>';
+    if(!hasCli){
+      h+='<button class="ab" style="color:var(--r);border-color:var(--r)" onclick="removeBranch(\''+esc(bn)+'\')">&#10005; Remove</button>';
+    } else {
+      h+='<span style="font-size:10px;color:var(--mu)">Has clients</span>';
+    }
+    h+='</div>';
+  }
+  h+='</div>';
+  // SOUTH
+  h+='<div style="flex:1;min-width:200px"><div style="font-size:10px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">&#9660; SOUTH REGION</div>';
+  for(var i=0;i<SOUTH.length;i++){
+    var bn=SOUTH[i],hasCli=false;
+    for(var j=0;j<clients.length;j++){if((clients[j].branch||'').toLowerCase()===bn.toLowerCase()){hasCli=true;break;}}
+    var _s=bn.toLowerCase().replace(/\s+/g,'').replace('chililabombwe','chili');
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(30,132,73,.06);border:1px solid rgba(30,132,73,.2);border-radius:8px;margin-bottom:6px">';
+    h+='<div><div style="font-weight:600;font-size:13px">'+esc(bn)+'</div>';
+    h+='<div style="font-size:10px;color:var(--mu)">Mgr: '+_s+'_manager &nbsp;|&nbsp; Pass: manager123</div></div>';
+    if(!hasCli){
+      h+='<button class="ab" style="color:var(--r);border-color:var(--r)" onclick="removeBranch(\''+esc(bn)+'\')">&#10005; Remove</button>';
+    } else {
+      h+='<span style="font-size:10px;color:var(--mu)">Has clients</span>';
+    }
+    h+='</div>';
+  }
+  h+='</div>';
+  h+='</div></div>';
+
+  // Add new branch form
+  h+='<div style="background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--r2)">+ Add New Branch</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">';
+  h+='<div style="flex:2;min-width:140px"><label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Branch Name</label><input id="nb_name" type="text" placeholder="e.g. Kitwe" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;font-size:13px;box-sizing:border-box"></div>';
+  h+='<div style="flex:1;min-width:120px"><label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Region</label><select id="nb_region" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;font-size:13px;background:#fff"><option value="NORTH">NORTH</option><option value="SOUTH">SOUTH</option></select></div>';
+  h+='<button class="btn btk" style="padding:8px 16px;white-space:nowrap" onclick="addBranch()">Add Branch</button>';
+  h+='</div></div>';
+  h+='</div></div>';
+
+  // ── DATA SUMMARY ─────────────────────────────────────────────────────────
   h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">Current Data Summary</span></div><div class="cdb"><div class="sg">';
   h+='<div class="sc c1"><div class="si">&#128101;</div><div class="sl">Clients</div><div class="sv">'+clients.length+'</div><div class="ss">'+(sCount>0?sCount+' sample':'No sample data')+'</div></div>';
   h+='<div class="sc c2"><div class="si">&#128176;</div><div class="sl">Loans</div><div class="sv">'+loans.length+'</div></div>';
@@ -3537,6 +3931,42 @@ function renderDataManage(mc){
   h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--r)"><div class="cdh" style="background:rgba(192,57,43,.05)"><span class="cdt" style="color:var(--r)">Reset Options</span></div><div class="cdb"><div style="font-size:12px;color:var(--mu);margin-bottom:14px">These actions are permanent and cannot be undone.</div><div class="fr3"><div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff"><div style="font-size:20px;margin-bottom:6px">&#128101;</div><div style="font-weight:600;font-size:13px;margin-bottom:4px">Clear Clients Only</div><div style="font-size:11px;color:var(--mu);margin-bottom:10px">Removes all clients and their loans.</div><button class="btn btw bts" style="width:100%" onclick="clearClients()">Clear Clients</button></div><div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff"><div style="font-size:20px;margin-bottom:6px">&#128176;</div><div style="font-weight:600;font-size:13px;margin-bottom:4px">Clear Loans Only</div><div style="font-size:11px;color:var(--mu);margin-bottom:10px">Removes loans and payments. Keeps clients.</div><button class="btn btw bts" style="width:100%" onclick="clearLoans()">Clear Loans</button></div><div style="border:1.5px solid var(--r);border-radius:10px;padding:14px;background:#fff"><div style="font-size:20px;margin-bottom:6px">&#128163;</div><div style="font-weight:600;font-size:13px;margin-bottom:4px;color:var(--r)">Full System Reset</div><div style="font-size:11px;color:var(--mu);margin-bottom:10px">Wipes ALL data. Fresh start.</div><button class="btn btr bts" style="width:100%" onclick="fullReset()">Full Reset</button></div></div></div></div>';
   h+='<div class="cd" style="border-left:4px solid var(--ok)"><div class="cdh" style="background:rgba(30,132,73,.05)"><span class="cdt" style="color:var(--ok)">How to Import Your Real Data</span></div><div class="cdb"><div class="fr"><div><div style="font-weight:600;margin-bottom:5px;font-size:13px">Step 1 &#8212; Delete sample data (above)</div><div style="font-weight:600;margin-bottom:5px;font-size:13px">Step 2 &#8212; Import Clients</div><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Clients tab &#8594; Import CSV</div><div style="font-family:monospace;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px">CODE, NAME, PHONE, COLLATERAL, BRANCH</div></div><div><div style="font-weight:600;margin-bottom:5px;font-size:13px">Step 3 &#8212; Import Loans (F-Series)</div><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Loans tab &#8594; Upload CSV + pick batch start date</div><div style="font-family:monospace;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px">CODE|NAME|PHONE|COLLATERAL|AMT|DAY1-DAY25</div></div></div></div></div>';
   mc.innerHTML=h;
+}
+function addBranch(){
+  var name=(document.getElementById('nb_name').value||'').trim();
+  var region=document.getElementById('nb_region').value;
+  if(!name){toast('Enter a branch name.');return;}
+  // Capitalise first letter of each word
+  name=name.replace(/\b\w/g,function(c){return c.toUpperCase();});
+  // Check for duplicate
+  if(ALL_B.indexOf(name)>=0){toast(name+' already exists.');return;}
+  // Add to branches
+  if(region==='NORTH') branches.NORTH.push(name);
+  else branches.SOUTH.push(name);
+  _rebuildBranches();
+  logAct('act','Added branch: '+name+' ('+region+')');
+  save();
+  toast('Branch '+name+' added! Logins created with password manager123 / officer123 / assist123');
+  renderDataManage(document.getElementById('mainct'));
+  // Also rebuild branch bar if visible
+  buildBranchBar();
+}
+function removeBranch(name){
+  // Safety check — don't remove if has clients
+  for(var i=0;i<clients.length;i++){
+    if((clients[i].branch||'').toLowerCase()===name.toLowerCase()){
+      toast('Cannot remove '+name+' — it has clients. Transfer or delete them first.');return;
+    }
+  }
+  if(!confirm('Remove branch "'+name+'"? All logins for this branch will be deleted.')){return;}
+  branches.NORTH=branches.NORTH.filter(function(b){return b!==name;});
+  branches.SOUTH=branches.SOUTH.filter(function(b){return b!==name;});
+  _rebuildBranches();
+  logAct('act','Removed branch: '+name);
+  save();
+  toast('Branch '+name+' removed.');
+  renderDataManage(document.getElementById('mainct'));
+  buildBranchBar();
 }
 function deleteSampleData(){if(!confirm('Delete all 10 sample clients and their loans/payments?'))return;var sc=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'],slids=[];for(var i=0;i<loans.length;i++){if(sc.indexOf(loans[i].clientId)>=0)slids.push(loans[i].id);}clients=clients.filter(function(c){return sc.indexOf(c.id)<0;});loans=loans.filter(function(l){return sc.indexOf(l.clientId)<0;});payments=payments.filter(function(p){return slids.indexOf(p.loanId)<0;});logAct('act','Deleted sample data');save();toast('Sample data deleted!');renderDataManage(document.getElementById('mainct'));}
 function clearClients(){if(!confirm('Delete ALL clients and their loans/payments?'))return;clients=[];loans=[];payments=[];logAct('act','Cleared all clients');save();toast('All clients cleared.');renderDataManage(document.getElementById('mainct'));}
@@ -3593,7 +4023,7 @@ function openXlsModal(){
   var fi=document.getElementById('xlsfile');if(fi)fi.value='';
   document.getElementById('xlsmod').classList.add('op');
 }
-function openLimpModal(){document.getElementById('liprev').style.display='none';document.getElementById('libtn').style.display='none';document.getElementById('libg').style.display='none';document.getElementById('limpbatchdate').value='';document.getElementById('limpmod').classList.add('op');}
+function openLimpModal(){document.getElementById('liprev').style.display='none';document.getElementById('libtn').style.display='none';document.getElementById('libg').style.display='none';document.getElementById('limpbatchdate').value='';_fillBranchSelect('libr','',false);document.getElementById('limpmod').classList.add('op');}
 function handleLimpFile(input){parseLimpCSV(input.files[0]);}
 function parseLimpCSV(file){var reader=new FileReader();reader.onload=function(ev){var rows=parseCSVText(ev.target.result),result=[];for(var i=0;i<rows.length;i++){if(i<2)continue;var cols=rows[i];if(!cols[0]||!cols[1])continue;var code=(cols[0]||'').trim(),name=(cols[1]||'').trim(),phone=String(cols[2]||'').trim(),colItems=(cols[3]||'').trim(),amtGiven=parseFloat((cols[4]||'').replace(/[^0-9.]/g,''))||0;if(!name||!amtGiven)continue;var dayPays=[];for(var d=0;d<25;d++){var raw=cols[16+d]?String(cols[16+d]).replace(/[^0-9.]/g,''):'';var v=parseFloat(raw);if(!isNaN(v)&&v>0)dayPays.push(v);}result.push({code:code,name:name,phone:phone,colItems:colItems,amtGiven:amtGiven,amtDue:amtGiven*1.4,daily:amtGiven*1.4/25,dayPays:dayPays});}lipend=result;if(!lipend.length){toast('No data found. Check CSV format.');return;}document.getElementById('licountlabel').textContent=lipend.length+' loans ready';var tbody=document.getElementById('lipbody'),branch=document.getElementById('libr').value||'Nakadoli';tbody.innerHTML='';for(var i=0;i<Math.min(12,lipend.length);i++){var row=lipend[i],ex=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===branch){ex=clients[j];break;}}var exLoan=null;if(ex){for(var j=0;j<loans.length;j++){if(loans[j].clientId===ex.id&&loans[j].status==='Active'){exLoan=loans[j];break;}}}var tr=document.createElement('tr');tr.innerHTML='<td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(row.code)+'</td><td>'+esc(row.name)+(ex?'<span class="bg bgg" style="font-size:8px;margin-left:4px">Existing</span>':'')+'</td><td style="font-family:monospace;font-size:10px">'+zmw(row.amtGiven)+'</td><td style="font-family:monospace;font-size:10px;color:var(--r)">'+zmw(row.amtDue)+'</td><td style="font-family:monospace;font-size:10px">'+zmw(row.daily)+'</td><td>'+row.dayPays.length+'/25</td><td><span class="bg '+(exLoan?'bgo':'bgb')+'" style="font-size:8px">'+(exLoan?'Update':'New')+'</span></td>';tbody.appendChild(tr);}document.getElementById('liprev').style.display='block';document.getElementById('libtn').style.display='';document.getElementById('libg').style.display='block';};reader.readAsText(file);}
 function confirmLoanImport(){var branch=document.getElementById('libr').value||'Nakadoli',batchDate=document.getElementById('limpbatchdate').value||td_();if(!batchDate){toast('Please select the batch start date.');return;}var created=0,updated=0;for(var i=0;i<lipend.length;i++){var row=lipend[i],c=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===branch){c=clients[j];break;}}if(!c){c={id:gCid(),code:row.code,name:row.name,nrc:'',phone:row.phone,branch:branch,address:'',occupation:'',gname:'',gnrc:'',gphone:'',grel:'',gaddress:'',colType:'Appliances',colValue:'',colItems:row.colItems,colDesc:'',businessPhotos:[],homePhotos:[],guarantorPhotos:[],collateralLockedDate:batchDate,regDate:batchDate};clients.push(c);}var loan=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){loan=loans[j];break;}}if(loan){payments=payments.filter(function(p){return p.loanId!==loan.id;});for(var d=0;d<row.dayPays.length;d++){var dd=new Date(batchDate+'T00:00:00');dd.setDate(dd.getDate()+d);payments.push({id:Date.now()+Math.random(),loanId:loan.id,amount:row.dayPays[d],date:dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()),notes:'Imported',recordedBy:'CSV Import'});}loan.amountGiven=row.amtGiven;loan.amountDue=row.amtDue;loan.dailyPayment=row.daily;loan.dateGiven=batchDate;updated++;}else{var nl={id:gLid(),code:row.code,clientId:c.id,amountGiven:row.amtGiven,interest:row.amtGiven*0.4,amountDue:row.amtDue,dailyPayment:row.daily,dateGiven:batchDate,status:'Active',colItems:row.colItems};loans.push(nl);for(var d=0;d<row.dayPays.length;d++){var dd=new Date(batchDate+'T00:00:00');dd.setDate(dd.getDate()+d);payments.push({id:Date.now()+Math.random(),loanId:nl.id,amount:row.dayPays[d],date:dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()),notes:'Imported',recordedBy:'CSV Import'});}c.collateralLockedDate=batchDate;created++;}}logAct('act','Loan CSV: '+created+' new, '+updated+' updated');save();closeModal('limpmod');toast('Done! '+created+' new, '+updated+' updated.');renderLoans(document.getElementById('mainct'),'');}
@@ -3603,6 +4033,7 @@ function openAddClientModal(){
   var flds=['acname','acnrc','acphone','acocc','acaddr','accode','accoltype','accolval','accolitems','acgname','acgnrc','acgphone','acgrel'];
   for(var i=0;i<flds.length;i++){var el=document.getElementById(flds[i]);if(el)el.value='';}
   var brEl=document.getElementById('acbranch');
+  _fillBranchSelect('acbranch', (cu&&cu.branch)?cu.branch:'', true);
   brEl.value=(cu&&cu.branch)?cu.branch:'';
   document.getElementById('addclientmod').classList.add('op');
 }
@@ -3829,6 +4260,7 @@ function openEditClient(id){
   document.getElementById('ec_nrc').value=c.nrc||'';
   document.getElementById('ec_phone').value=c.phone||'';
   document.getElementById('ec_occ').value=c.occupation||'';
+  _fillBranchSelect('ec_branch', c.branch||'', true);
   document.getElementById('ec_branch').value=c.branch||'';
   document.getElementById('ec_addr').value=c.address||'';
   document.getElementById('ec_coltype').value=c.colType||'Appliances';
@@ -3980,6 +4412,7 @@ function openEditApp(id){
   document.getElementById('ea_name').value=a.name||'';
   document.getElementById('ea_nrc').value=a.nrc||'';
   document.getElementById('ea_phone').value=a.phone||'';
+  _fillBranchSelect('ea_branch', a.branch||'', true);
   document.getElementById('ea_branch').value=a.branch||'';
   document.getElementById('ea_amt').value=a.amountRequested||'';
   document.getElementById('ea_occ').value=a.occupation||'';
