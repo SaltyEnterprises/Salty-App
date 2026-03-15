@@ -3210,19 +3210,18 @@ function rptBranches(){
   } else if(cu&&cu.role==='credit_south'){
     allowed=SOUTH.slice();
   } else if(cu&&cu.branch){
-    // Officer — only their branch
     allowed=[cu.branch];
   } else {
-    allowed=northBranches.concat(southBranches);
+    allowed=NORTH.concat(SOUTH);
   }
-  // Only include branches that have at least one loan
+  // Only include branches that have at least one loan (case-insensitive match)
   var active={};
   for(var i=0;i<loans.length;i++){
-    var c=findC(loans[i].clientId);
-    if(c)active[c.branch]=true;
+    var lc=findC(loans[i].clientId);
+    if(lc&&lc.branch) active[lc.branch.toLowerCase()]=true;
   }
   var out=[];
-  for(var i=0;i<allowed.length;i++)if(active[allowed[i]])out.push(allowed[i]);
+  for(var i=0;i<allowed.length;i++)if(active[allowed[i].toLowerCase()])out.push(allowed[i]);
   // Fall back to all allowed branches even if no loans yet
   return out.length?out:allowed;
 }
@@ -3930,7 +3929,92 @@ function renderDataManage(mc){
   else{h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--ok)"><div class="cdh" style="background:rgba(30,132,73,.05)"><span class="cdt" style="color:var(--ok)">No Sample Data</span></div><div class="cdb"><div style="font-size:13px;color:var(--t2)">All sample data removed. Safe to import your real clients and loans.</div></div></div>';}
   h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--r)"><div class="cdh" style="background:rgba(192,57,43,.05)"><span class="cdt" style="color:var(--r)">Reset Options</span></div><div class="cdb"><div style="font-size:12px;color:var(--mu);margin-bottom:14px">These actions are permanent and cannot be undone.</div><div class="fr3"><div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff"><div style="font-size:20px;margin-bottom:6px">&#128101;</div><div style="font-weight:600;font-size:13px;margin-bottom:4px">Clear Clients Only</div><div style="font-size:11px;color:var(--mu);margin-bottom:10px">Removes all clients and their loans.</div><button class="btn btw bts" style="width:100%" onclick="clearClients()">Clear Clients</button></div><div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff"><div style="font-size:20px;margin-bottom:6px">&#128176;</div><div style="font-weight:600;font-size:13px;margin-bottom:4px">Clear Loans Only</div><div style="font-size:11px;color:var(--mu);margin-bottom:10px">Removes loans and payments. Keeps clients.</div><button class="btn btw bts" style="width:100%" onclick="clearLoans()">Clear Loans</button></div><div style="border:1.5px solid var(--r);border-radius:10px;padding:14px;background:#fff"><div style="font-size:20px;margin-bottom:6px">&#128163;</div><div style="font-weight:600;font-size:13px;margin-bottom:4px;color:var(--r)">Full System Reset</div><div style="font-size:11px;color:var(--mu);margin-bottom:10px">Wipes ALL data. Fresh start.</div><button class="btn btr bts" style="width:100%" onclick="fullReset()">Full Reset</button></div></div></div></div>';
   h+='<div class="cd" style="border-left:4px solid var(--ok)"><div class="cdh" style="background:rgba(30,132,73,.05)"><span class="cdt" style="color:var(--ok)">How to Import Your Real Data</span></div><div class="cdb"><div class="fr"><div><div style="font-weight:600;margin-bottom:5px;font-size:13px">Step 1 &#8212; Delete sample data (above)</div><div style="font-weight:600;margin-bottom:5px;font-size:13px">Step 2 &#8212; Import Clients</div><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Clients tab &#8594; Import CSV</div><div style="font-family:monospace;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px">CODE, NAME, PHONE, COLLATERAL, BRANCH</div></div><div><div style="font-weight:600;margin-bottom:5px;font-size:13px">Step 3 &#8212; Import Loans (F-Series)</div><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Loans tab &#8594; Upload CSV + pick batch start date</div><div style="font-family:monospace;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px">CODE|NAME|PHONE|COLLATERAL|AMT|DAY1-DAY25</div></div></div></div></div>';
+
+  // ── EXPORT / BACKUP ───────────────────────────────────────────────────────
+  h+='<div class="cd" style="margin-top:14px;border-left:4px solid #8e44ad"><div class="cdh" style="background:rgba(142,68,173,.05)"><span class="cdt" style="color:#8e44ad">&#128190; Export &amp; Backup</span></div><div class="cdb">';
+  h+='<div style="font-size:12px;color:var(--mu);margin-bottom:14px">Download your data as Excel-compatible CSV files. Save these regularly as a backup — weekly or monthly recommended.</div>';
+  h+='<div class="fr3">';
+  h+='<div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff;text-align:center">';
+  h+='<div style="font-size:24px;margin-bottom:6px">&#128101;</div>';
+  h+='<div style="font-weight:600;font-size:13px;margin-bottom:4px">Clients</div>';
+  h+='<div style="font-size:11px;color:var(--mu);margin-bottom:10px">'+clients.length+' records</div>';
+  h+='<button class="btn btk bts" style="width:100%" onclick="exportCSV(\'clients\')">&#11123; Download</button>';
+  h+='</div>';
+  h+='<div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff;text-align:center">';
+  h+='<div style="font-size:24px;margin-bottom:6px">&#128176;</div>';
+  h+='<div style="font-weight:600;font-size:13px;margin-bottom:4px">Loans</div>';
+  h+='<div style="font-size:11px;color:var(--mu);margin-bottom:10px">'+loans.length+' records</div>';
+  h+='<button class="btn btk bts" style="width:100%" onclick="exportCSV(\'loans\')">&#11123; Download</button>';
+  h+='</div>';
+  h+='<div style="border:1px solid var(--bd);border-radius:10px;padding:14px;background:#fff;text-align:center">';
+  h+='<div style="font-size:24px;margin-bottom:6px">&#128179;</div>';
+  h+='<div style="font-weight:600;font-size:13px;margin-bottom:4px">Payments</div>';
+  h+='<div style="font-size:11px;color:var(--mu);margin-bottom:10px">'+payments.length+' records</div>';
+  h+='<button class="btn btk bts" style="width:100%" onclick="exportCSV(\'payments\')">&#11123; Download</button>';
+  h+='</div>';
+  h+='</div>';
+  h+='<div style="margin-top:12px;text-align:center">';
+  h+='<button class="btn" style="background:linear-gradient(135deg,#8e44ad,#6c3483);color:#fff;padding:10px 28px;font-size:13px;border-radius:10px" onclick="exportCSV(\'all\')">&#11123; Download Full Backup (All Data)</button>';
+  h+='</div>';
+  h+='</div></div>';
+
   mc.innerHTML=h;
+}
+function exportCSV(type){
+  var today=td_();
+  function dlCSV(filename, rows){
+    var csv=rows.map(function(r){
+      return r.map(function(v){
+        var s=v===null||v===undefined?'':String(v);
+        if(s.indexOf(',')>=0||s.indexOf('"')>=0||s.indexOf('\n')>=0) s='"'+s.replace(/"/g,'""')+'"';
+        return s;
+      }).join(',');
+    }).join('\r\n');
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function exportClients(){
+    var rows=[['ID','Code','Name','NRC','Phone','Branch','Address','Occupation','Guarantor Name','Guarantor NRC','Guarantor Phone','Guarantor Relation','Collateral Type','Collateral Value','Collateral Items','Registered Date','Collateral Locked Date']];
+    for(var i=0;i<clients.length;i++){
+      var c=clients[i];
+      rows.push([c.id,c.code||'',c.name||'',c.nrc||'',c.phone||'',c.branch||'',c.address||'',c.occupation||'',c.gname||'',c.gnrc||'',c.gphone||'',c.grel||'',c.colType||'',c.colValue||'',c.colItems||'',c.regDate||'',c.collateralLockedDate||'']);
+    }
+    dlCSV('salty_clients_'+today+'.csv', rows);
+  }
+
+  function exportLoans(){
+    var rows=[['Loan ID','Client ID','Client Name','Branch','Code','Amount Given','Amount Due','Daily Payment','Interest','Date Given','Status','Series','Collateral Items']];
+    for(var i=0;i<loans.length;i++){
+      var l=loans[i],lc=findC(l.clientId);
+      rows.push([l.id,l.clientId,lc?lc.name:'',lc?lc.branch:'',l.code||'',l.amountGiven||0,l.amountDue||0,l.dailyPayment||0,l.interest||0,l.dateGiven||'',l.status||'',l.series||'',l.colItems||'']);
+    }
+    dlCSV('salty_loans_'+today+'.csv', rows);
+  }
+
+  function exportPayments(){
+    var rows=[['Payment ID','Loan ID','Client Name','Branch','Amount','Date','Notes','Recorded By']];
+    for(var i=0;i<payments.length;i++){
+      var p=payments[i],pl=null,lc=null;
+      for(var j=0;j<loans.length;j++){if(loans[j].id===p.loanId){pl=loans[j];break;}}
+      if(pl)lc=findC(pl.clientId);
+      rows.push([p.id,p.loanId,lc?lc.name:'',lc?lc.branch:'',p.amount||0,p.date||'',p.notes||'',p.recordedBy||'']);
+    }
+    dlCSV('salty_payments_'+today+'.csv', rows);
+  }
+
+  if(type==='clients'){ exportClients(); toast('Clients exported!'); }
+  else if(type==='loans'){ exportLoans(); toast('Loans exported!'); }
+  else if(type==='payments'){ exportPayments(); toast('Payments exported!'); }
+  else if(type==='all'){
+    exportClients();
+    setTimeout(function(){ exportLoans(); },400);
+    setTimeout(function(){ exportPayments(); toast('Full backup downloaded — 3 files!'); },800);
+  }
 }
 function addBranch(){
   var name=(document.getElementById('nb_name').value||'').trim();
@@ -3993,7 +4077,7 @@ function setBranchAll(){
 }
 
 function normBranch(raw) {
-  if(!raw) return 'Nakadoli';
+  if(!raw) return ALL_B[0]||'Nakadoli';
   var r = raw.trim().toLowerCase();
   var map = {
     'nakadoli':'Nakadoli','nakado':'Nakadoli',
@@ -4006,10 +4090,13 @@ function normBranch(raw) {
     'kalulushi':'Kalulushi','kalulu':'Kalulushi'
   };
   if(map[r]) return map[r];
-  // partial match
-  var names=['Nakadoli','Chingola','Mufulira','Chililabombwe','Lusaka','Ndola','Luanshya','Kalulushi'];
-  for(var i=0;i<names.length;i++){
-    if(r.indexOf(names[i].toLowerCase())>=0 || names[i].toLowerCase().indexOf(r)>=0) return names[i];
+  // Check for exact match (case-insensitive) against current branch list first
+  for(var i=0;i<ALL_B.length;i++){
+    if(ALL_B[i].toLowerCase()===r) return ALL_B[i];
+  }
+  // partial match against current branch list
+  for(var i=0;i<ALL_B.length;i++){
+    if(r.indexOf(ALL_B[i].toLowerCase())>=0 || ALL_B[i].toLowerCase().indexOf(r)>=0) return ALL_B[i];
   }
   return raw; // return as-is if no match
 }
