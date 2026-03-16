@@ -1506,11 +1506,11 @@ function _startFirebaseListener() {
             var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
             if(rp.length>lp.length) r[f]=rp; else r[f]=lp;
           });
-          clients[idx] = r;
+          clients[idx] = r; changed=true;
         } else { clients.push(r); changed=true; }
       }
     });
-    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); updateBadges(); showSyncDot(); }
   }, function(e){ console.warn('clients listener:', e); });
 
   // Listen to loans subcollection
@@ -1523,10 +1523,10 @@ function _startFirebaseListener() {
       if (change.type === 'removed') {
         if (idx >= 0) { loans.splice(idx,1); changed=true; }
       } else {
-        if (idx >= 0) { loans[idx]=r; } else { loans.push(r); changed=true; }
+        if (idx >= 0) { loans[idx]=r; changed=true; } else { loans.push(r); changed=true; }
       }
     });
-    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); updateBadges(); showSyncDot(); }
   }, function(e){ console.warn('loans listener:', e); });
 
   // Listen to payments subcollection
@@ -1540,10 +1540,10 @@ function _startFirebaseListener() {
       if (change.type === 'removed') {
         if (idx >= 0) { payments.splice(idx,1); changed=true; }
       } else {
-        if (idx >= 0) { payments[idx]=r; } else { payments.push(r); changed=true; }
+        if (idx >= 0) { payments[idx]=r; changed=true; } else { payments.push(r); changed=true; }
       }
     });
-    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); updateBadges(); showSyncDot(); }
   }, function(e){ console.warn('payments listener:', e); });
 
   // Listen to applications subcollection
@@ -1563,11 +1563,11 @@ function _startFirebaseListener() {
             var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
             if(rp.length>lp.length) r[f]=rp; else r[f]=lp;
           });
-          applications[idx]=r;
+          applications[idx]=r; changed=true;
         } else { applications.push(r); changed=true; }
       }
     });
-    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); updateBadges(); showSyncDot(); }
   }, function(e){ console.warn('apps listener:', e); });
 
   // Listen to disbursements subcollection
@@ -1580,10 +1580,10 @@ function _startFirebaseListener() {
       if (change.type === 'removed') {
         if (idx >= 0) { disbursements.splice(idx,1); changed=true; }
       } else {
-        if (idx >= 0) { disbursements[idx]=r; } else { disbursements.push(r); changed=true; }
+        if (idx >= 0) { disbursements[idx]=r; changed=true; } else { disbursements.push(r); changed=true; }
       }
     });
-    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); showSyncDot(); }
+    if (changed) { _saveLS(); if(cu&&!document.querySelector('.mo.op')&&window._currentTab) showTab(window._currentTab); updateBadges(); showSyncDot(); }
   }, function(e){ console.warn('disbs listener:', e); });
 
 } // end _startFirebaseListener
