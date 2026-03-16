@@ -1301,7 +1301,9 @@ function _saveDoc(collection, id, data) {
     if (clean.g1 && clean.g1.sig && clean.g1.sig.indexOf('data:')===0) clean.g1.sig = '';
     if (clean.g2 && clean.g2.sig && clean.g2.sig.indexOf('data:')===0) clean.g2.sig = '';
   }
-  _db.collection('salty').doc(collection).collection(collection==='clients'?'c':collection==='loans'?'l':collection==='payments'?'p':collection==='applications'?'a':'d').doc(String(id)).set(clean)
+  var colMap = {clients:'c', loans:'l', payments:'p', applications:'a', disbursements:'d'};
+  var subCol = colMap[collection] || 'a';
+  _db.collection('salty').doc(collection).collection(subCol).doc(String(id)).set(clean)
     .then(function(){ console.log('✅ '+collection+'/'+id+' saved'); showSyncDot(); })
     .catch(function(e){ console.error('❌ saveDoc failed:', e); toast('⚠️ Sync error: '+(e.message||e.code)); });
 }
@@ -1394,84 +1396,97 @@ function _loadFromFirebase() {
       if (m.lidc > lidc) lidc = m.lidc;
       if (m.USERS) { for (var k in m.USERS) { if(m.USERS.hasOwnProperty(k)) USERS[k]=m.USERS[k]; } }
       if (m.manualEntries) { for (var k in m.manualEntries) { manualEntries[k]=m.manualEntries[k]; } }
-    if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
+      if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
       if (m.actLog) actLog = m.actLog;
     }
     loaded.meta = true; checkAllLoaded();
   }).catch(function(){ loaded.meta=true; checkAllLoaded(); });
 
-  // Clients
+  // Clients — Firebase wins, preserve local photo URLs if more complete
   _db.collection('salty').doc('clients').collection('c').get().then(function(snap) {
+    var localMap = {};
+    clients.forEach(function(x){ if(x.id) localMap[x.id]=x; });
     var map = {};
-    clients.forEach(function(x){ if(x.id) map[x.id]=x; });
     snap.forEach(function(doc) {
       var r=doc.data(); if(!r.id) return;
       var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
-      if (map[r.id]) {
+      if (localMap[r.id]) {
         photoFields.forEach(function(f) {
-          var lp=(map[r.id][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+          var lp=(localMap[r.id][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
           var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
-          if(rp.length>lp.length) map[r.id][f]=rp;
+          if(lp.length>rp.length) r[f]=lp; // keep local only if more photos
         });
-      } else { map[r.id]=r; newData=true; }
+      }
+      map[r.id]=r;
     });
+    // Add any local-only records not yet pushed
+    clients.forEach(function(x){ if(x.id&&!map[x.id]) map[x.id]=x; });
     clients=[]; for(var k in map) clients.push(map[k]);
-    loaded.clients=true; checkAllLoaded();
+    newData=true; loaded.clients=true; checkAllLoaded();
   }).catch(function(){ loaded.clients=true; checkAllLoaded(); });
 
-  // Loans
+  // Loans — Firebase always wins
   _db.collection('salty').doc('loans').collection('l').get().then(function(snap) {
+    var localMap = {};
+    loans.forEach(function(x){ if(x.id) localMap[x.id]=x; });
     var map = {};
-    loans.forEach(function(x){ if(x.id) map[x.id]=x; });
     snap.forEach(function(doc) {
       var r=doc.data(); if(!r.id) return;
-      if (!map[r.id]) { map[r.id]=r; newData=true; }
+      map[r.id]=r;
     });
+    loans.forEach(function(x){ if(x.id&&!map[x.id]) map[x.id]=x; });
     loans=[]; for(var k in map) loans.push(map[k]);
-    loaded.loans=true; checkAllLoaded();
+    newData=true; loaded.loans=true; checkAllLoaded();
   }).catch(function(){ loaded.loans=true; checkAllLoaded(); });
 
-  // Payments
+  // Payments — Firebase always wins
   _db.collection('salty').doc('payments').collection('p').get().then(function(snap) {
+    var localMap = {};
+    payments.forEach(function(x){ if(x.id) localMap[String(x.id)]=x; });
     var map = {};
-    payments.forEach(function(x){ if(x.id) map[String(x.id)]=x; });
     snap.forEach(function(doc) {
       var r=doc.data(); if(!r.id) return;
-      if (!map[String(r.id)]) { map[String(r.id)]=r; newData=true; }
+      map[String(r.id)]=r;
     });
+    payments.forEach(function(x){ if(x.id&&!map[String(x.id)]) map[String(x.id)]=x; });
     payments=[]; for(var k in map) payments.push(map[k]);
-    loaded.payments=true; checkAllLoaded();
+    newData=true; loaded.payments=true; checkAllLoaded();
   }).catch(function(){ loaded.payments=true; checkAllLoaded(); });
 
-  // Applications
+  // Applications — Firebase always wins (status changes must propagate)
   _db.collection('salty').doc('applications').collection('a').get().then(function(snap) {
+    var localMap = {};
+    applications.forEach(function(x){ if(x.id) localMap[x.id]=x; });
     var map = {};
-    applications.forEach(function(x){ if(x.id) map[x.id]=x; });
     snap.forEach(function(doc) {
       var r=doc.data(); if(!r.id) return;
-      if (map[r.id]) {
-        var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
+      var photoFields=['businessPhotos','homePhotos','guarantorPhotos'];
+      if (localMap[r.id]) {
         photoFields.forEach(function(f) {
-          var lp=(map[r.id][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
+          var lp=(localMap[r.id][f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
           var rp=(r[f]||[]).filter(function(x){return x&&x.indexOf('http')===0;});
-          if(rp.length>lp.length) map[r.id][f]=rp;
+          if(lp.length>rp.length) r[f]=lp;
         });
-      } else { map[r.id]=r; newData=true; }
+      }
+      map[r.id]=r;
     });
+    applications.forEach(function(x){ if(x.id&&!map[x.id]) map[x.id]=x; });
     applications=[]; for(var k in map) applications.push(map[k]);
-    loaded.apps=true; checkAllLoaded();
+    newData=true; loaded.apps=true; checkAllLoaded();
   }).catch(function(){ loaded.apps=true; checkAllLoaded(); });
 
-  // Disbursements
+  // Disbursements — Firebase always wins
   _db.collection('salty').doc('disbursements').collection('d').get().then(function(snap) {
+    var localMap = {};
+    disbursements.forEach(function(x){ if(x.id) localMap[x.id]=x; });
     var map = {};
-    disbursements.forEach(function(x){ if(x.id) map[x.id]=x; });
     snap.forEach(function(doc) {
       var r=doc.data(); if(!r.id) return;
-      if (!map[r.id]) { map[r.id]=r; newData=true; }
+      map[r.id]=r;
     });
+    disbursements.forEach(function(x){ if(x.id&&!map[x.id]) map[x.id]=x; });
     disbursements=[]; for(var k in map) disbursements.push(map[k]);
-    loaded.disbs=true; checkAllLoaded();
+    newData=true; loaded.disbs=true; checkAllLoaded();
   }).catch(function(){ loaded.disbs=true; checkAllLoaded(); });
 }
 
@@ -2292,6 +2307,7 @@ function saveApp(isDraft) {
   // Save and close immediately — submission never blocks on photos
   applications.push(app);
   logAct('act', (isDraft ? 'Saved draft for ' : 'Submitted app for ') + name);
+  _saveDoc('applications', app.id, app);
   save();
   closeModal('appmod');
   toast(isDraft ? 'Draft saved!' : 'Application submitted to Credit Controller!');
