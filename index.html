@@ -1206,102 +1206,104 @@ function saveData() {
 }
 
 function _pushToFirebase() {
+  if (!_fbReady || !_db) { console.warn('Firebase not ready'); return; }
   if (_isSaving) { _pendingSave = true; return; }
   _isSaving = true;
 
   var batch = _db.batch();
   var batchCount = 0;
-  var MAX_BATCH = 490; // Firestore batch limit is 500 ops
+  var MAX_BATCH = 490;
+  var batches = [];
 
   function flushBatch() {
-    if (batchCount === 0) return Promise.resolve();
-    var b = batch;
+    if (batchCount === 0) return;
+    batches.push(batch.commit());
     batch = _db.batch();
     batchCount = 0;
-    return b.commit();
   }
 
-  function addToBatch(ref, data) {
-    batch.set(ref, data);
-    batchCount++;
-    if (batchCount >= MAX_BATCH) {
-      return flushBatch();
-    }
-    return Promise.resolve();
-  }
-
-  // --- Meta doc (counters, users, manualEntries, actLog) ---
-  var metaRef = _db.collection('salty').doc('meta');
-  batch.set(metaRef, {
-    cidc: cidc||1,
-    lidc: lidc||1,
-    USERS: USERS,
+  // --- Meta doc ---
+  batch.set(_db.collection('salty').doc('meta'), {
+    cidc: cidc||1, lidc: lidc||1, USERS: USERS,
     manualEntries: manualEntries||{},
     branches: branches||{NORTH:NORTH,SOUTH:SOUTH},
-    actLog: (actLog||[]).slice(-100),
-    ts: Date.now()
+    actLog: (actLog||[]).slice(-100), ts: Date.now()
   });
   batchCount++;
 
   // --- Clients ---
   for (var i=0; i<clients.length; i++) {
-    var ref = _db.collection('salty').doc('clients').collection('c').doc(clients[i].id);
-    batch.set(ref, clients[i]);
-    batchCount++;
-    if (batchCount >= MAX_BATCH) { flushBatch(); }
+    batch.set(_db.collection('salty').doc('clients').collection('c').doc(clients[i].id), clients[i]);
+    if (++batchCount >= MAX_BATCH) flushBatch();
   }
 
   // --- Loans ---
   for (var i=0; i<loans.length; i++) {
-    var ref = _db.collection('salty').doc('loans').collection('l').doc(loans[i].id);
-    batch.set(ref, loans[i]);
-    batchCount++;
-    if (batchCount >= MAX_BATCH) { flushBatch(); }
+    batch.set(_db.collection('salty').doc('loans').collection('l').doc(loans[i].id), loans[i]);
+    if (++batchCount >= MAX_BATCH) flushBatch();
   }
 
   // --- Payments ---
   for (var i=0; i<payments.length; i++) {
     var p = payments[i];
-    var pid = String(p.id);
-    var ref = _db.collection('salty').doc('payments').collection('p').doc(pid);
-    batch.set(ref, p);
-    batchCount++;
-    if (batchCount >= MAX_BATCH) { flushBatch(); }
+    batch.set(_db.collection('salty').doc('payments').collection('p').doc(String(p.id)), p);
+    if (++batchCount >= MAX_BATCH) flushBatch();
   }
 
-  // --- Applications (strip base64, keep only https URLs) ---
+  // --- Applications (strip base64 sigs & photos — keep only https URLs) ---
   for (var i=0; i<applications.length; i++) {
     var a = JSON.parse(JSON.stringify(applications[i]));
     ['businessPhotos','homePhotos','guarantorPhotos'].forEach(function(f) {
       a[f] = (a[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
     });
-    var ref = _db.collection('salty').doc('applications').collection('a').doc(a.id);
-    batch.set(ref, a);
-    batchCount++;
-    if (batchCount >= MAX_BATCH) { flushBatch(); }
+    // Strip base64 signatures to keep doc under 1MB
+    if (a.clientSig && a.clientSig.indexOf('data:')===0) a.clientSig = '';
+    if (a.spouse && a.spouse.sig && a.spouse.sig.indexOf('data:')===0) a.spouse.sig = '';
+    if (a.g1 && a.g1.sig && a.g1.sig.indexOf('data:')===0) a.g1.sig = '';
+    if (a.g2 && a.g2.sig && a.g2.sig.indexOf('data:')===0) a.g2.sig = '';
+    batch.set(_db.collection('salty').doc('applications').collection('a').doc(a.id), a);
+    if (++batchCount >= MAX_BATCH) flushBatch();
   }
 
   // --- Disbursements ---
   for (var i=0; i<disbursements.length; i++) {
-    var ref = _db.collection('salty').doc('disbursements').collection('d').doc(disbursements[i].id);
-    batch.set(ref, disbursements[i]);
-    batchCount++;
-    if (batchCount >= MAX_BATCH) { flushBatch(); }
+    batch.set(_db.collection('salty').doc('disbursements').collection('d').doc(disbursements[i].id), disbursements[i]);
+    if (++batchCount >= MAX_BATCH) flushBatch();
   }
 
-  flushBatch()
+  flushBatch();
+
+  Promise.all(batches.length ? batches : [Promise.resolve()])
     .then(function() {
       _isSaving = false;
       _lastSaveTime = Date.now();
-      console.log('✅ Firebase saved (subcollections)');
+      console.log('✅ Firebase saved');
       showSyncDot();
       if (_pendingSave) { _pendingSave = false; _pushToFirebase(); }
     })
     .catch(function(e) {
       _isSaving = false;
       console.error('❌ Firebase save FAILED:', e.code, e.message);
-      toast('⚠️ Sync failed: ' + e.message);
+      toast('⚠️ Sync failed — check connection: ' + (e.message||e.code||e));
     });
+}
+
+// Save a single document immediately to Firebase (for status changes that must sync fast)
+function _saveDoc(collection, id, data) {
+  if (!_fbReady || !_db) return;
+  var clean = JSON.parse(JSON.stringify(data));
+  if (collection === 'applications') {
+    ['businessPhotos','homePhotos','guarantorPhotos'].forEach(function(f) {
+      clean[f] = (clean[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
+    });
+    if (clean.clientSig && clean.clientSig.indexOf('data:')===0) clean.clientSig = '';
+    if (clean.spouse && clean.spouse.sig && clean.spouse.sig.indexOf('data:')===0) clean.spouse.sig = '';
+    if (clean.g1 && clean.g1.sig && clean.g1.sig.indexOf('data:')===0) clean.g1.sig = '';
+    if (clean.g2 && clean.g2.sig && clean.g2.sig.indexOf('data:')===0) clean.g2.sig = '';
+  }
+  _db.collection('salty').doc(collection).collection(collection==='clients'?'c':collection==='loans'?'l':collection==='payments'?'p':collection==='applications'?'a':'d').doc(String(id)).set(clean)
+    .then(function(){ console.log('✅ '+collection+'/'+id+' saved'); showSyncDot(); })
+    .catch(function(e){ console.error('❌ saveDoc failed:', e); toast('⚠️ Sync error: '+(e.message||e.code)); });
 }
 
 function loadData() { return false; }
@@ -2299,16 +2301,16 @@ function saveApp(isDraft) {
   if (!isDraft) _uploadPhotosInBackground(appId);
 }
 
-function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
+function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);_saveDoc('applications',a.id,a);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
 function mgrDecide(id,decision){
   var a=findA(id);if(!a)return;
   if(decision==='reject'){
     var notes=prompt('Reason for rejection (optional):','');
     a.status='rejected';a.amountApproved=0;a.decisionNotes=notes||'';a.decidedAt=now_();a.decidedBy=cu.display;a.mgrDecidedBy=cu.display;
-    logAct('act','Manager rejected application for '+a.name);save();toast('Application rejected.');showTab('applications');
+    logAct('act','Manager rejected application for '+a.name);_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
   } else {
     a.status='mgr_approved';a.mgrApprovedAt=now_();a.mgrApprovedBy=cu.display;
-    logAct('act','Manager approved application for '+a.name+' — forwarded to CC');save();
+    logAct('act','Manager approved application for '+a.name+' — forwarded to CC');_saveDoc('applications',a.id,a);save();
     toast('Approved! Forwarded to Credit Controller ✓');showTab('applications');
   }
 }
@@ -2336,7 +2338,7 @@ function openApproval(id){
   document.getElementById('aprvdetail').innerHTML=h;
   document.getElementById('aprvmod').classList.add('op');
 }
-function decideApp(decision){var a=findA(aprvId);if(!a)return;var amt=parseFloat(document.getElementById('aprvamt').value)||a.amountRequested,notes=document.getElementById('aprvnotes').value;a.status=decision==='approve'?'approved':'rejected';a.amountApproved=decision==='approve'?amt:0;a.decisionNotes=notes;a.decidedAt=now_();a.decidedBy=cu.display;logAct('act',(decision==='approve'?'Approved':'Rejected')+' app for '+a.name);save();closeModal('aprvmod');toast(decision==='approve'?'Application APPROVED!':'Application rejected.');showTab('applications');}
+function decideApp(decision){var a=findA(aprvId);if(!a)return;var amt=parseFloat(document.getElementById('aprvamt').value)||a.amountRequested,notes=document.getElementById('aprvnotes').value;a.status=decision==='approve'?'approved':'rejected';a.amountApproved=decision==='approve'?amt:0;a.decisionNotes=notes;a.decidedAt=now_();a.decidedBy=cu.display;logAct('act',(decision==='approve'?'Approved':'Rejected')+' app for '+a.name);_saveDoc('applications',a.id,a);save();closeModal('aprvmod');toast(decision==='approve'?'Application APPROVED!':'Application rejected.');showTab('applications');}
 function viewApp(id,backFn){
   var a=findA(id);if(!a)return;
   var mc=document.getElementById('mainct');
@@ -2432,7 +2434,7 @@ function quickDecide(id,decision){
   if(decision==='reject'){
     var notes=prompt('Reason for rejection (optional):','');
     a.status='rejected';a.amountApproved=0;a.decisionNotes=notes||'';a.decidedAt=now_();a.decidedBy=cu.display;
-    logAct('act','Rejected application for '+a.name);save();toast('Application rejected.');showTab('applications');
+    logAct('act','Rejected application for '+a.name);_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
   }
 }
 function renderDisbursements(mc){
