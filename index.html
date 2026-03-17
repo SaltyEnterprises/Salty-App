@@ -1915,8 +1915,8 @@ function updateBadges(){
       if(!inDisb)pd++;
     }
   } else {
-    // Credit controller / admin — see mgr_approved apps waiting for their review
-    for(var i=0;i<applications.length;i++){if(applications[i].status==='mgr_approved'&&isMine(applications[i]))pa++;}
+    // Credit controller / admin — see submitted and mgr_approved apps waiting for their review
+    for(var i=0;i<applications.length;i++){if((applications[i].status==='mgr_approved'||applications[i].status==='submitted')&&isMine(applications[i]))pa++;}
     for(var i=0;i<disbursements.length;i++){if(disbursements[i].status==='pending')pd++;}
   }
   var ba=document.getElementById('nb-myapps')||document.getElementById('nb-applications'),bd=document.getElementById('nb-disbursements');
@@ -2056,7 +2056,7 @@ function renderDashboard(mc){
   if(canDo('manager')){
     for(var i=0;i<applications.length;i++){if(applications[i].status==='submitted'&&isMine(applications[i]))pa++;}
   } else {
-    for(var i=0;i<applications.length;i++){if(applications[i].status==='mgr_approved'&&isMine(applications[i]))pa++;}
+    for(var i=0;i<applications.length;i++){if((applications[i].status==='mgr_approved'||applications[i].status==='submitted')&&isMine(applications[i]))pa++;}
   }
   for(var i=0;i<disbursements.length;i++){if(disbursements[i].status==='pending')pd++;}
   var h='<div class="sg">';
@@ -2095,7 +2095,7 @@ function renderApplications(mc){
       h+='<div style="margin-bottom:14px">';
       for(var i=0;i<pending.length;i++){
         var a=pending[i];
-        var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]);
+        var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]).concat(a.g1Photos||[]).concat(a.g2Photos||[]);
         h+='<div style="background:#fff;border:1px solid var(--bd);border-left:4px solid #9b59b6;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">';
         h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
         h+='<div><div style="font-size:16px;font-weight:800;color:var(--r2)">'+esc(a.name)+'</div>';
@@ -2172,15 +2172,15 @@ function renderApplications(mc){
 
   // ── CREDIT CONTROLLER / ADMIN VIEW ────────────────────────────────────────
   if(canDo('credit_north','credit_south','admin')){
-    var submitted=all.filter(function(a){return a.status==='mgr_approved';});
-    var others=all.filter(function(a){return a.status!=='mgr_approved';});
+    var submitted=all.filter(function(a){return a.status==='mgr_approved'||a.status==='submitted';});
+    var others=all.filter(function(a){return a.status!=='mgr_approved'&&a.status!=='submitted';});
     if(submitted.length>0){
       h+='<div style="background:linear-gradient(135deg,var(--wn),#e67e22);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">';
-      h+='<div><strong>'+submitted.length+' Application'+(submitted.length>1?'s':'')+' Awaiting Your Review</strong><div style="font-size:11px;opacity:.85;margin-top:2px">Manager pre-approved — review and make final decision</div></div><span style="font-size:24px">&#128203;</span></div>';
+      h+='<div><strong>'+submitted.length+' Application'+(submitted.length>1?'s':'')+' Awaiting Your Review</strong><div style="font-size:11px;opacity:.85;margin-top:2px">Review and make final decision</div></div><span style="font-size:24px">&#128203;</span></div>';
       h+='<div style="margin-bottom:14px">';
       for(var i=0;i<submitted.length;i++){
         var a=submitted[i],isN=NORTH.indexOf(a.branch)>=0;
-        var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]);
+        var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]).concat(a.g1Photos||[]).concat(a.g2Photos||[]);
         h+='<div style="background:#fff;border:1px solid var(--bd);border-left:4px solid var(--wn);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">';
         h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
         h+='<div><div style="font-size:16px;font-weight:800;color:var(--r2)">'+esc(a.name)+'</div>';
