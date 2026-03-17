@@ -645,6 +645,17 @@ tr:last-child td{border-bottom:none}
 <div style="background:linear-gradient(135deg,var(--r2),var(--r));color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
 <span style="font-weight:700;font-size:13px">SALTY ENTERPRISES LOAN APPLICATION</span><span style="font-size:11px;opacity:.8" id="appdateshow"></span></div>
 <div class="fsec"><div class="fst">Section 1 &#8212; Client Information</div>
+<div class="fg" style="margin-bottom:14px">
+  <label class="fl">Client Type *</label>
+  <div style="display:flex;gap:10px;margin-top:4px">
+    <label style="display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid var(--bd);border-radius:10px;cursor:pointer;flex:1;font-size:13px;font-weight:600;transition:all .2s" id="ct_new_lbl">
+      <input type="radio" name="clientType" id="ct_new" value="new" onchange="onClientTypeChange()" style="accent-color:var(--ok)"> &#127381; New Client
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid var(--bd);border-radius:10px;cursor:pointer;flex:1;font-size:13px;font-weight:600;transition:all .2s" id="ct_ret_lbl">
+      <input type="radio" name="clientType" id="ct_ret" value="returning" onchange="onClientTypeChange()" style="accent-color:var(--in)"> &#128257; Returning Client
+    </label>
+  </div>
+</div>
 <div class="fr3">
 <div class="fg"><label class="fl">Full Name *</label><input class="fi" id="apn"></div>
 <div class="fg"><label class="fl">NRC Number *</label><input class="fi" id="apnrc"></div>
@@ -688,6 +699,7 @@ tr:last-child td{border-bottom:none}
 </div>
 <table class="ctbl"><thead><tr><th>Item</th><th>Condition</th><th>Comments</th><th></th></tr></thead><tbody id="g1tbl"></tbody></table>
 <button class="btn btg bts" style="margin-top:6px" onclick="addG1Row()">+ Add Item</button>
+<div class="fg" style="margin-top:10px"><label class="fl">Guarantor 1 Photos</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apg1fl','g1photos')"><div style="font-size:22px">&#128247;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apg1fl"></div></div>
 <div class="fg" style="margin-top:10px"><label class="fl">Guarantor 1 Signature</label>
 <div class="sigwrap"><canvas class="sigpad" id="sig-g1" width="600" height="90"></canvas><button class="sigclear" onclick="clearSig('sig-g1')">Clear</button></div></div></div>
 <div class="fsec"><div class="fst">Section 5 &#8212; Guarantor 2</div>
@@ -702,13 +714,14 @@ tr:last-child td{border-bottom:none}
 </div>
 <table class="ctbl"><thead><tr><th>Item</th><th>Condition</th><th>Comments</th><th></th></tr></thead><tbody id="g2tbl"></tbody></table>
 <button class="btn btg bts" style="margin-top:6px" onclick="addG2Row()">+ Add Item</button>
+<div class="fg" style="margin-top:10px"><label class="fl">Guarantor 2 Photos</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apg2fl','g2photos')"><div style="font-size:22px">&#128247;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apg2fl"></div></div>
 <div class="fg" style="margin-top:10px"><label class="fl">Guarantor 2 Signature</label>
 <div class="sigwrap"><canvas class="sigpad" id="sig-g2" width="600" height="90"></canvas><button class="sigclear" onclick="clearSig('sig-g2')">Clear</button></div></div></div>
 <div class="fsec"><div class="fst">Section 6 &#8212; Photos</div>
 <div class="fr3">
 <div class="fg"><label class="fl">Business Photos</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apbfl','business')"><div style="font-size:22px">&#127978;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apbfl"></div></div>
 <div class="fg"><label class="fl">Home / Collateral</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'aphfl','home')"><div style="font-size:22px">&#127969;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="aphfl"></div></div>
-<div class="fg"><label class="fl">Client Portrait</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apgfl','guarantor')"><div style="font-size:22px">&#128100;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apgfl"></div></div>
+<div class="fg"><label class="fl">Client Portrait / ID</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apgfl','guarantor')"><div style="font-size:22px">&#128100;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apgfl"></div></div>
 </div></div>
 <div class="fsec"><div class="fst">Section 7 &#8212; Client Signature</div>
 <div style="background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.8;color:var(--t2)">
@@ -1193,9 +1206,22 @@ function _saveLS() {
     localStorage.setItem('salty_v3', JSON.stringify({
       clients:clients, loans:loans, payments:payments,
       applications:applications, disbursements:disbursements,
-      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS, manualEntries:manualEntries, branches:branches
+      actLog:actLog, cidc:cidc, lidc:lidc, USERS:USERS, manualEntries:manualEntries, branches:branches,
+      instantLoans:instantLoans,
+      longTermLoans:longTermLoans,
+      invoiceLoans:invoiceLoans,
+      orderLoans:orderLoans,
+      salaryLoans:salaryLoans
     }));
   } catch(e) { console.warn('localStorage full:', e); }
+}
+
+// Dirty tracking — only write records that actually changed
+var _dirty = { meta:false, clients:{}, loans:{}, payments:{}, applications:{}, disbursements:{} };
+
+function _markDirty(collection, id) {
+  if (collection === 'meta') { _dirty.meta = true; return; }
+  if (_dirty[collection]) _dirty[collection][String(id)] = true;
 }
 
 function saveData() {
@@ -1208,11 +1234,25 @@ function saveData() {
 function _pushToFirebase() {
   if (!_fbReady || !_db) { console.warn('Firebase not ready'); return; }
   if (_isSaving) { _pendingSave = true; return; }
-  _isSaving = true;
 
+  // Snapshot dirty flags then clear them
+  var snap = {
+    meta: _dirty.meta,
+    clients: Object.keys(_dirty.clients),
+    loans: Object.keys(_dirty.loans),
+    payments: Object.keys(_dirty.payments),
+    applications: Object.keys(_dirty.applications),
+    disbursements: Object.keys(_dirty.disbursements)
+  };
+  _dirty = { meta:false, clients:{}, loans:{}, payments:{}, applications:{}, disbursements:{} };
+
+  var hasWork = snap.meta || snap.clients.length || snap.loans.length ||
+                snap.payments.length || snap.applications.length || snap.disbursements.length;
+  if (!hasWork) return; // nothing to write
+
+  _isSaving = true;
   var batch = _db.batch();
   var batchCount = 0;
-  var MAX_BATCH = 490;
   var batches = [];
 
   function flushBatch() {
@@ -1222,54 +1262,64 @@ function _pushToFirebase() {
     batchCount = 0;
   }
 
-  // --- Meta doc ---
-  batch.set(_db.collection('salty').doc('meta'), {
-    cidc: cidc||1, lidc: lidc||1, USERS: USERS,
-    manualEntries: manualEntries||{},
-    branches: branches||{NORTH:NORTH,SOUTH:SOUTH},
-    actLog: (actLog||[]).slice(-100), ts: Date.now()
+  function addOp(ref, data) {
+    batch.set(ref, data);
+    if (++batchCount >= 490) flushBatch();
+  }
+
+  // Meta
+  if (snap.meta) {
+    addOp(_db.collection('salty').doc('meta'), {
+      cidc: cidc||1, lidc: lidc||1, USERS: USERS,
+      manualEntries: manualEntries||{},
+      branches: branches||{NORTH:NORTH,SOUTH:SOUTH},
+      instantLoans: instantLoans||[],
+      longTermLoans: longTermLoans||[],
+      invoiceLoans: invoiceLoans||[],
+      orderLoans: orderLoans||[],
+      salaryLoans: salaryLoans||[],
+      actLog: (actLog||[]).slice(-100), ts: Date.now()
+    });
+  }
+
+  // Clients (only dirty ones)
+  snap.clients.forEach(function(id) {
+    var c = clients.filter(function(x){return x.id===id;})[0];
+    if (c) addOp(_db.collection('salty').doc('clients').collection('c').doc(id), c);
   });
-  batchCount++;
 
-  // --- Clients ---
-  for (var i=0; i<clients.length; i++) {
-    batch.set(_db.collection('salty').doc('clients').collection('c').doc(clients[i].id), clients[i]);
-    if (++batchCount >= MAX_BATCH) flushBatch();
-  }
+  // Loans (only dirty ones)
+  snap.loans.forEach(function(id) {
+    var l = loans.filter(function(x){return x.id===id;})[0];
+    if (l) addOp(_db.collection('salty').doc('loans').collection('l').doc(id), l);
+  });
 
-  // --- Loans ---
-  for (var i=0; i<loans.length; i++) {
-    batch.set(_db.collection('salty').doc('loans').collection('l').doc(loans[i].id), loans[i]);
-    if (++batchCount >= MAX_BATCH) flushBatch();
-  }
+  // Payments (only dirty ones)
+  snap.payments.forEach(function(id) {
+    var p = payments.filter(function(x){return String(x.id)===id;})[0];
+    if (p) addOp(_db.collection('salty').doc('payments').collection('p').doc(id), p);
+  });
 
-  // --- Payments ---
-  for (var i=0; i<payments.length; i++) {
-    var p = payments[i];
-    batch.set(_db.collection('salty').doc('payments').collection('p').doc(String(p.id)), p);
-    if (++batchCount >= MAX_BATCH) flushBatch();
-  }
-
-  // --- Applications (strip base64 sigs & photos — keep only https URLs) ---
-  for (var i=0; i<applications.length; i++) {
-    var a = JSON.parse(JSON.stringify(applications[i]));
+  // Applications (only dirty ones — strip sigs & base64 photos)
+  snap.applications.forEach(function(id) {
+    var a = applications.filter(function(x){return x.id===id;})[0];
+    if (!a) return;
+    a = JSON.parse(JSON.stringify(a));
     ['businessPhotos','homePhotos','guarantorPhotos'].forEach(function(f) {
       a[f] = (a[f]||[]).filter(function(x){ return x && typeof x==='string' && x.indexOf('http')===0; });
     });
-    // Strip base64 signatures to keep doc under 1MB
-    if (a.clientSig && a.clientSig.indexOf('data:')===0) a.clientSig = '';
-    if (a.spouse && a.spouse.sig && a.spouse.sig.indexOf('data:')===0) a.spouse.sig = '';
-    if (a.g1 && a.g1.sig && a.g1.sig.indexOf('data:')===0) a.g1.sig = '';
-    if (a.g2 && a.g2.sig && a.g2.sig.indexOf('data:')===0) a.g2.sig = '';
-    batch.set(_db.collection('salty').doc('applications').collection('a').doc(a.id), a);
-    if (++batchCount >= MAX_BATCH) flushBatch();
-  }
+    if (a.clientSig && a.clientSig.indexOf('data:')===0) a.clientSig='';
+    if (a.spouse && a.spouse.sig && a.spouse.sig.indexOf('data:')===0) a.spouse.sig='';
+    if (a.g1 && a.g1.sig && a.g1.sig.indexOf('data:')===0) a.g1.sig='';
+    if (a.g2 && a.g2.sig && a.g2.sig.indexOf('data:')===0) a.g2.sig='';
+    addOp(_db.collection('salty').doc('applications').collection('a').doc(id), a);
+  });
 
-  // --- Disbursements ---
-  for (var i=0; i<disbursements.length; i++) {
-    batch.set(_db.collection('salty').doc('disbursements').collection('d').doc(disbursements[i].id), disbursements[i]);
-    if (++batchCount >= MAX_BATCH) flushBatch();
-  }
+  // Disbursements (only dirty ones)
+  snap.disbursements.forEach(function(id) {
+    var d = disbursements.filter(function(x){return x.id===id;})[0];
+    if (d) addOp(_db.collection('salty').doc('disbursements').collection('d').doc(id), d);
+  });
 
   flushBatch();
 
@@ -1277,14 +1327,27 @@ function _pushToFirebase() {
     .then(function() {
       _isSaving = false;
       _lastSaveTime = Date.now();
-      console.log('✅ Firebase saved');
+      console.log('✅ Firebase saved ('+
+        (snap.meta?'meta ':'') +
+        (snap.clients.length?snap.clients.length+' clients ':'') +
+        (snap.loans.length?snap.loans.length+' loans ':'') +
+        (snap.payments.length?snap.payments.length+' payments ':'') +
+        (snap.applications.length?snap.applications.length+' apps ':'') +
+        (snap.disbursements.length?snap.disbursements.length+' disbs ':'')+')');
       showSyncDot();
       if (_pendingSave) { _pendingSave = false; _pushToFirebase(); }
     })
     .catch(function(e) {
       _isSaving = false;
+      // Put dirty flags back so they retry next save
+      if (snap.meta) _dirty.meta = true;
+      snap.clients.forEach(function(id){ _dirty.clients[id]=true; });
+      snap.loans.forEach(function(id){ _dirty.loans[id]=true; });
+      snap.payments.forEach(function(id){ _dirty.payments[id]=true; });
+      snap.applications.forEach(function(id){ _dirty.applications[id]=true; });
+      snap.disbursements.forEach(function(id){ _dirty.disbursements[id]=true; });
       console.error('❌ Firebase save FAILED:', e.code, e.message);
-      toast('⚠️ Sync failed — check connection: ' + (e.message||e.code||e));
+      toast('⚠️ Sync failed — will retry: ' + (e.message||e.code||''));
     });
 }
 
@@ -1327,6 +1390,11 @@ function startRealtimeSync() {
       if (d.USERS)         { for (var _lk in d.USERS) { if (d.USERS.hasOwnProperty(_lk)) USERS[_lk] = d.USERS[_lk]; } }
       if (d.manualEntries) manualEntries = d.manualEntries;
       if (d.branches && d.branches.NORTH && d.branches.SOUTH) { branches=d.branches; _rebuildBranches(); }
+      if (d.instantLoans) instantLoans = d.instantLoans;
+      if (d.longTermLoans) longTermLoans = d.longTermLoans;
+      if (d.invoiceLoans) invoiceLoans = d.invoiceLoans;
+      if (d.orderLoans) orderLoans = d.orderLoans;
+      if (d.salaryLoans) salaryLoans = d.salaryLoans;
     }
   } catch(e) {}
 
@@ -1502,6 +1570,11 @@ function _startFirebaseListener() {
     if (m.USERS) { for (var k in m.USERS) { if(m.USERS.hasOwnProperty(k)) USERS[k]=m.USERS[k]; } }
     if (m.manualEntries) { for (var k in m.manualEntries) { if(!manualEntries[k]) manualEntries[k]=m.manualEntries[k]; } }
     if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
+    if (m.instantLoans) instantLoans = m.instantLoans;
+    if (m.longTermLoans) longTermLoans = m.longTermLoans;
+    if (m.invoiceLoans) invoiceLoans = m.invoiceLoans;
+    if (m.orderLoans) orderLoans = m.orderLoans;
+    if (m.salaryLoans) salaryLoans = m.salaryLoans;
     _saveLS();
   }, function(e){ console.warn('meta listener:', e); });
 
@@ -1654,11 +1727,12 @@ var SOUTH=['Lusaka','Ndola','Luanshya','Kalulushi'];
 var ALL_B=['Nakadoli','Chingola','Mufulira','Chililabombwe','Lusaka','Ndola','Luanshya','Kalulushi'];
 // branches object is the source of truth — saved to Firebase
 // if loaded from storage it will override the hardcoded defaults above
-var branches={NORTH:['Nakadoli','Chingola','Mufulira','Chililabombwe'],SOUTH:['Lusaka','Ndola','Luanshya','Kalulushi']};
+var branches={NORTH:['Nakadoli','Chingola','Mufulira','Chililabombwe'],SOUTH:['Lusaka','Ndola','Luanshya','Kalulushi'],KITWE:['Kitwe']};
 function _rebuildBranches(){
   NORTH=branches.NORTH.slice();
   SOUTH=branches.SOUTH.slice();
-  ALL_B=NORTH.concat(SOUTH);
+  var KITWE_B=(branches.KITWE||['Kitwe']).slice();
+  ALL_B=NORTH.concat(SOUTH).concat(KITWE_B);
   // Rebuild all branch-based user accounts
   // Keep fixed accounts, regenerate branch ones
   var fixed={admin:USERS.admin,crispine:USERS.crispine,faith:USERS.faith};
@@ -1682,7 +1756,8 @@ var LDAYS=25,COOL=90;
 var USERS={
   admin:{pass:'admin123',display:'Admin',role:'admin',region:'ALL',branch:''},
   crispine:{pass:'north123',display:'Crispine Mwale',role:'credit_north',region:'NORTH',branch:''},
-  faith:{pass:'south123',display:'Faith Zulu',role:'credit_south',region:'SOUTH',branch:''}
+  faith:{pass:'south123',display:'Faith Zulu',role:'credit_south',region:'SOUTH',branch:''},
+  kitwe_finance:{pass:'finance123',display:'Finance Manager (Kitwe)',role:'finance_manager',region:'KITWE',branch:'Kitwe'}
 };
 _rebuildBranches();
 // Populate any branch <select> with current live branches
@@ -1698,8 +1773,13 @@ function _fillBranchSelect(id, selectedVal, includeBlank){
 }
 var cu=null,abr='ALL',cpid=null,cidc=1010,lidc=2010;
 var clients=[],loans=[],payments=[],applications=[],disbursements=[],actLog=[];
+var instantLoans=[]; // Kitwe instant loans
+var longTermLoans=[]; // Long term loans
+var invoiceLoans=[]; // Invoice discounting
+var orderLoans=[]; // Order financing
+var salaryLoans=[]; // Salary advance
 var manualEntries={};  // keyed "type:branch:period" => value
-var pph={business:[],home:[],guarantor:[]};
+var pph={business:[],home:[],guarantor:[],g1photos:[],g2photos:[]};document.getElementById('ct_new').checked=false;document.getElementById('ct_ret').checked=false;document.getElementById('ct_new_lbl').style.borderColor='var(--bd)';document.getElementById('ct_ret_lbl').style.borderColor='var(--bd)';
 var aprvId=null,ipend=[],lipend=[];
 function pad(n){return n<10?'0'+n:String(n);}
 function td_(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
@@ -1757,7 +1837,7 @@ function findC(id){for(var i=0;i<clients.length;i++){if(clients[i].id===id)retur
 function findL(id){for(var i=0;i<loans.length;i++){if(loans[i].id===id)return loans[i];}return null;}
 function findA(id){for(var i=0;i<applications.length;i++){if(applications[i].id===id)return applications[i];}return null;}
 function findD(id){for(var i=0;i<disbursements.length;i++){if(disbursements[i].id===id)return disbursements[i];}return null;}
-var RLABELS={admin:'Head Office Admin',credit_north:'Credit Controller North',credit_south:'Credit Controller South',manager:'Branch Manager',officer:'Loan Officer',assistant:'Office Assistant'};
+var RLABELS={admin:'Head Office Admin',credit_north:'Credit Controller North',credit_south:'Credit Controller South',manager:'Branch Manager',officer:'Loan Officer',assistant:'Office Assistant',finance_manager:'Finance Manager'};
 var RCOLORS={admin:'#c0392b',credit_north:'#1a5276',credit_south:'#1e8449',manager:'#6c3483',officer:'#8e44ad',assistant:'#d4820a'};
 function toggleAcc(el){var b=el.nextElementSibling;b.style.display=b.style.display==='block'?'none':'block';}
 function doLogin(){
@@ -1783,7 +1863,9 @@ function doLogout(){logAct('out','Signed out');cu=null;document.getElementById('
 function makeH(id){return function(){showTab(id);};}
 function buildNav(){
   var r=cu.role,tabs=[];
-  if(r==='admin'||r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  if(r==='admin'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'instantloans',label:'&#9889; Instant Loans'},{id:'longtermloans',label:'&#128188; Long Term'},{id:'invoiceloans',label:'&#128196; Invoice'},{id:'orderloans',label:'&#128230; Order Finance'},{id:'salaryloans',label:'&#128100; Salary Advance'},{id:'kitwereports',label:'&#128202; Kitwe Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  else if(r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  else if(r==='finance_manager'){tabs=[{id:'instantloans',label:'&#9889; Instant Loans',b:true},{id:'longtermloans',label:'&#128188; Long Term',b:true},{id:'invoiceloans',label:'&#128196; Invoice',b:true},{id:'orderloans',label:'&#128230; Order Finance',b:true},{id:'salaryloans',label:'&#128100; Salary Advance',b:true},{id:'kitwereports',label:'&#128202; Reports'},{id:'activity',label:'Activity'}];}
   else if(r==='manager'){tabs=[{id:'applications',label:'Applications',b:true}];}
   else if(r==='officer'){tabs=[{id:'myapps',label:'My Submissions',b:true},{id:'newapp',label:'+ Register Client'}];}
   else if(r==='assistant'){tabs=[{id:'disbursements',label:'Disbursements',b:true},{id:'myapps',label:'Approved Clients'}];}
@@ -1852,7 +1934,7 @@ function buildBranchBar(){
   bb.innerHTML=h;
 }
 function setBranch(b,el){abr=b;var bcs=document.querySelectorAll('.bc');for(var i=0;i<bcs.length;i++)bcs[i].classList.remove('ac');el.classList.add('ac');showHome();}
-function showHome(){if(cu.role==='officer')showTab('myapps');else if(cu.role==='assistant')showTab('disbursements');else if(cu.role==='manager')showTab('applications');else showTab('dashboard');}
+function showHome(){if(cu.role==='officer')showTab('myapps');else if(cu.role==='assistant')showTab('disbursements');else if(cu.role==='manager')showTab('applications');else if(cu.role==='finance_manager')showTab('instantloans');else showTab('dashboard');}
 function showTab(n){
   window._currentTab = n;
   var nts=document.querySelectorAll('.nt');for(var i=0;i<nts.length;i++)nts[i].classList.remove('ac');
@@ -1870,6 +1952,12 @@ function showTab(n){
   else if(n==='reports')renderReports(mc);
   else if(n==='activity')renderActivity(mc);
   else if(n==='datamanage')renderDataManage(mc);
+  else if(n==='instantloans')renderInstantLoans(mc);
+  else if(n==='longtermloans')renderLongTermLoans(mc);
+  else if(n==='invoiceloans')renderInvoiceLoans(mc);
+  else if(n==='orderloans')renderOrderLoans(mc);
+  else if(n==='salaryloans')renderSalaryLoans(mc);
+  else if(n==='kitwereports')renderKitweReports(mc);
   updateBadges();
 }
 function openProfile(){document.getElementById('pname').value=cu.display;document.getElementById('prole').value=RLABELS[cu.role]||cu.role;_fillBranchSelect('pbranch',cu.branch||'',true);document.getElementById('pbranch').value=cu.branch||'';document.getElementById('puser').value='';document.getElementById('ppass').value='';document.getElementById('ppass2').value='';document.getElementById('profmod').classList.add('op');}
@@ -2161,7 +2249,7 @@ function renderApplications(mc){
 }
 
 function openAppModal(){
-  pph={business:[],home:[],guarantor:[]};
+  pph={business:[],home:[],guarantor:[],g1photos:[],g2photos:[]};
   document.getElementById('appdateshow').textContent=fmtD(td_());document.getElementById('apdate').value=td_();document.getElementById('apofficer').value=cu?cu.display:'';document.getElementById('apamt').value='';document.getElementById('apdue').value='';document.getElementById('apdaily').value='';
   var flds=['apn','apnrc','apph','apocc','apadr','apbadr','apspn','apspnrc','apspph','apg1n','apg1nrc','apg1ph','apg1ba','apg1ha','apg2n','apg2nrc','apg2ph','apg2ba','apg2ha'];
   for(var i=0;i<flds.length;i++){var el=document.getElementById(flds[i]);if(el)el.value='';}
@@ -2171,8 +2259,16 @@ function openAppModal(){
   document.getElementById('coltbody').innerHTML='';document.getElementById('g1tbl').innerHTML='';document.getElementById('g2tbl').innerHTML='';
   addColRow();addG1Row();addG2Row();
   initSig('sig-client');initSig('sig-spouse');initSig('sig-g1');initSig('sig-g2');
-  var pfl=['apbfl','aphfl','apgfl'];for(var i=0;i<pfl.length;i++){var el=document.getElementById(pfl[i]);if(el)el.innerHTML='';}
+  var pfl=['apbfl','aphfl','apgfl','apg1fl','apg2fl'];for(var i=0;i<pfl.length;i++){var el=document.getElementById(pfl[i]);if(el)el.innerHTML='';}
   document.getElementById('appmod').classList.add('op');
+}
+function onClientTypeChange(){
+  var isNew=document.getElementById('ct_new').checked;
+  var isRet=document.getElementById('ct_ret').checked;
+  var nl=document.getElementById('ct_new_lbl');
+  var rl=document.getElementById('ct_ret_lbl');
+  if(nl) nl.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid '+(isNew?'var(--ok)':'var(--bd)')+';border-radius:10px;cursor:pointer;flex:1;font-size:13px;font-weight:600;background:'+(isNew?'rgba(30,132,73,.06)':'#fff');
+  if(rl) rl.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid '+(isRet?'var(--in)':'var(--bd)')+';border-radius:10px;cursor:pointer;flex:1;font-size:13px;font-weight:600;background:'+(isRet?'rgba(52,152,219,.06)':'#fff');
 }
 function updateAppCalc(){var amt=parseFloat(document.getElementById('apamt').value)||0,due=amt*1.4,daily=due/25;document.getElementById('apdue').value=due>0?zmw(due):'';document.getElementById('apdaily').value=daily>0?zmw(daily):'';}
 function addColRow(){var tb=document.getElementById('coltbody'),tr=document.createElement('tr');tr.innerHTML='<td><input placeholder="e.g. Upright Fridge"></td><td><input type="number" placeholder="0.00"></td><td><select style="width:100%;border:none;background:transparent;font-size:12px"><option>New</option><option>Good</option><option>Fair</option><option>Old</option></select></td><td><input type="number" placeholder="0.00"></td><td><button class="ab" style="color:var(--r)" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';tb.appendChild(tr);}
@@ -2207,12 +2303,19 @@ function _uploadOnePhoto(dataUrl, filename) {
 // Upload all photos from pph in the background after app is submitted.
 // Patches the saved app with real Cloudinary URLs then re-saves to Firestore.
 function _uploadPhotosInBackground(appId) {
-  var types = { businessPhotos: pph.business.slice(), homePhotos: pph.home.slice(), guarantorPhotos: pph.guarantor.slice() };
-  var total = types.businessPhotos.length + types.homePhotos.length + types.guarantorPhotos.length;
+  var types = {
+    businessPhotos:  pph.business.slice(),
+    homePhotos:      pph.home.slice(),
+    guarantorPhotos: pph.guarantor.slice(),
+    g1Photos:        pph.g1photos.slice(),
+    g2Photos:        pph.g2photos.slice()
+  };
+  var total = 0;
+  Object.keys(types).forEach(function(k){ total += types[k].length; });
   if (!total) return;
 
   var uploads = [];
-  var results = { businessPhotos: [], homePhotos: [], guarantorPhotos: [] };
+  var results = { businessPhotos:[], homePhotos:[], guarantorPhotos:[], g1Photos:[], g2Photos:[] };
 
   Object.keys(types).forEach(function(field) {
     types[field].forEach(function(photo, idx) {
@@ -2228,22 +2331,20 @@ function _uploadPhotosInBackground(appId) {
   });
 
   Promise.all(uploads).then(function() {
-    var urls = {
-      businessPhotos:  results.businessPhotos.filter(Boolean),
-      homePhotos:      results.homePhotos.filter(Boolean),
-      guarantorPhotos: results.guarantorPhotos.filter(Boolean)
-    };
-    var uploaded = urls.businessPhotos.length + urls.homePhotos.length + urls.guarantorPhotos.length;
+    var uploaded = 0;
+    Object.keys(results).forEach(function(k){ results[k]=results[k].filter(Boolean); uploaded+=results[k].length; });
     if (!uploaded) { console.warn('No photos uploaded to Cloudinary'); return; }
 
     var app = findA(appId);
     if (app) {
-      app.businessPhotos  = urls.businessPhotos;
-      app.homePhotos      = urls.homePhotos;
-      app.guarantorPhotos = urls.guarantorPhotos;
+      app.businessPhotos  = results.businessPhotos;
+      app.homePhotos      = results.homePhotos;
+      app.guarantorPhotos = results.guarantorPhotos;
+      app.g1Photos        = results.g1Photos;
+      app.g2Photos        = results.g2Photos;
+      _markDirty('applications', appId);
       save();
       toast('\ud83d\udcf7 ' + uploaded + ' photo(s) saved to cloud.');
-      console.log('Cloudinary upload complete:', uploaded, 'photos for', appId);
     }
   }).catch(function(e) {
     console.error('Background photo upload failed:', e);
@@ -2299,6 +2400,9 @@ function saveApp(isDraft) {
     businessPhotos:  [],
     homePhotos:      [],
     guarantorPhotos: [],
+    g1Photos:        [],
+    g2Photos:        [],
+    clientType: (document.getElementById('ct_ret')&&document.getElementById('ct_ret').checked)?'returning':'new',
     officerName: cu.display, officerUser: cu.username,
     status: isDraft ? 'draft' : 'submitted',
     createdAt: now_(), submittedAt: isDraft ? null : now_()
@@ -2307,6 +2411,7 @@ function saveApp(isDraft) {
   // Save and close immediately — submission never blocks on photos
   applications.push(app);
   logAct('act', (isDraft ? 'Saved draft for ' : 'Submitted app for ') + name);
+  _markDirty('applications', app.id); _markDirty('meta','');
   _saveDoc('applications', app.id, app);
   save();
   closeModal('appmod');
@@ -2317,16 +2422,16 @@ function saveApp(isDraft) {
   if (!isDraft) _uploadPhotosInBackground(appId);
 }
 
-function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);_saveDoc('applications',a.id,a);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
+function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
 function mgrDecide(id,decision){
   var a=findA(id);if(!a)return;
   if(decision==='reject'){
     var notes=prompt('Reason for rejection (optional):','');
     a.status='rejected';a.amountApproved=0;a.decisionNotes=notes||'';a.decidedAt=now_();a.decidedBy=cu.display;a.mgrDecidedBy=cu.display;
-    logAct('act','Manager rejected application for '+a.name);_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
+    logAct('act','Manager rejected application for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
   } else {
     a.status='mgr_approved';a.mgrApprovedAt=now_();a.mgrApprovedBy=cu.display;
-    logAct('act','Manager approved application for '+a.name+' — forwarded to CC');_saveDoc('applications',a.id,a);save();
+    logAct('act','Manager approved application for '+a.name+' — forwarded to CC');_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();
     toast('Approved! Forwarded to Credit Controller ✓');showTab('applications');
   }
 }
@@ -2354,7 +2459,7 @@ function openApproval(id){
   document.getElementById('aprvdetail').innerHTML=h;
   document.getElementById('aprvmod').classList.add('op');
 }
-function decideApp(decision){var a=findA(aprvId);if(!a)return;var amt=parseFloat(document.getElementById('aprvamt').value)||a.amountRequested,notes=document.getElementById('aprvnotes').value;a.status=decision==='approve'?'approved':'rejected';a.amountApproved=decision==='approve'?amt:0;a.decisionNotes=notes;a.decidedAt=now_();a.decidedBy=cu.display;logAct('act',(decision==='approve'?'Approved':'Rejected')+' app for '+a.name);_saveDoc('applications',a.id,a);save();closeModal('aprvmod');toast(decision==='approve'?'Application APPROVED!':'Application rejected.');showTab('applications');}
+function decideApp(decision){var a=findA(aprvId);if(!a)return;var amt=parseFloat(document.getElementById('aprvamt').value)||a.amountRequested,notes=document.getElementById('aprvnotes').value;a.status=decision==='approve'?'approved':'rejected';a.amountApproved=decision==='approve'?amt:0;a.decisionNotes=notes;a.decidedAt=now_();a.decidedBy=cu.display;logAct('act',(decision==='approve'?'Approved':'Rejected')+' app for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();closeModal('aprvmod');toast(decision==='approve'?'Application APPROVED!':'Application rejected.');showTab('applications');}
 function viewApp(id,backFn){
   var a=findA(id);if(!a)return;
   var mc=document.getElementById('mainct');
@@ -2366,7 +2471,9 @@ function viewApp(id,backFn){
   h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
   h+='<div><div style="font-size:11px;opacity:.7;letter-spacing:.5px">APPLICATION</div>';
   h+='<div style="font-size:22px;font-weight:800;margin-top:2px">'+esc(a.name)+'</div>';
-  h+='<div style="font-size:11px;opacity:.75;margin-top:4px">'+esc(a.branch)+' &nbsp;&#183;&nbsp; Ref: '+esc(a.id)+'</div></div>';
+  h+='<div style="font-size:11px;opacity:.75;margin-top:4px">'+esc(a.branch)+' &nbsp;&#183;&nbsp; Ref: '+esc(a.id)+'</div>';
+  if(a.clientType){h+='<div style="margin-top:6px"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:'+(a.clientType==='returning'?'rgba(52,152,219,.2)':'rgba(30,132,73,.2)')+';color:'+(a.clientType==='returning'?'var(--in)':'var(--ok)')+'">'+( a.clientType==='returning'?'&#128257; RETURNING CLIENT':'&#127381; NEW CLIENT')+'</span></div>';}
+  h+='</div>';
   h+='<div style="text-align:right"><span class="bg '+sc+'" style="font-size:11px;padding:4px 10px">'+a.status.toUpperCase()+'</span>';
   h+='<div style="font-size:10px;opacity:.7;margin-top:6px">Officer: '+esc(a.officerName||a.officerUser||'')+'</div>';
   h+='<div style="font-size:10px;opacity:.7">Submitted: '+fmtD(a.submittedAt?a.submittedAt.substring(0,10):'')+'</div></div></div></div>';
@@ -2421,7 +2528,9 @@ function viewApp(id,backFn){
     h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128247; Photos ('+allPhotos.length+')</span></div><div style="padding:10px 14px">';
     if(a.businessPhotos&&a.businessPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Business / Collateral</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.businessPhotos.length;pi++){var bsrc=a.businessPhotos[pi].preview||a.businessPhotos[pi];h+='<img src="'+bsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     if(a.homePhotos&&a.homePhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Home / Property</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.homePhotos.length;pi++){var hsrc=a.homePhotos[pi].preview||a.homePhotos[pi];h+='<img src="'+hsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
-    if(a.guarantorPhotos&&a.guarantorPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Client Portrait</div><div style="display:flex;flex-wrap:wrap;gap:8px">';for(var pi=0;pi<a.guarantorPhotos.length;pi++){var gsrc=a.guarantorPhotos[pi].preview||a.guarantorPhotos[pi];h+='<img src="'+gsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
+    if(a.guarantorPhotos&&a.guarantorPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Client Portrait / ID</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.guarantorPhotos.length;pi++){var gsrc=a.guarantorPhotos[pi].preview||a.guarantorPhotos[pi];h+='<img src="'+gsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
+    if(a.g1Photos&&a.g1Photos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Guarantor 1 Photos</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.g1Photos.length;pi++){var g1src=a.g1Photos[pi].preview||a.g1Photos[pi];h+='<img src="'+g1src+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
+    if(a.g2Photos&&a.g2Photos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Guarantor 2 Photos</div><div style="display:flex;flex-wrap:wrap;gap:8px">';for(var pi=0;pi<a.g2Photos.length;pi++){var g2src=a.g2Photos[pi].preview||a.g2Photos[pi];h+='<img src="'+g2src+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     h+='</div></div>';
   }
   // Section 7 — Client Signature
@@ -2450,7 +2559,7 @@ function quickDecide(id,decision){
   if(decision==='reject'){
     var notes=prompt('Reason for rejection (optional):','');
     a.status='rejected';a.amountApproved=0;a.decisionNotes=notes||'';a.decidedAt=now_();a.decidedBy=cu.display;
-    logAct('act','Rejected application for '+a.name);_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
+    logAct('act','Rejected application for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
   }
 }
 function renderDisbursements(mc){
@@ -2562,7 +2671,7 @@ function submitDisbList(){
   for(var i=0;i<dcs.length;i++){if(disbBranches.indexOf(dcs[i].branch)<0)disbBranches.push(dcs[i].branch);}
   var disbBranch=disbBranches.length===1?disbBranches[0]:'Multiple';
   disbursements.push({id:'SE-D'+Date.now(),date:date,branch:disbBranch,status:'pending',submittedBy:cu.display,submittedAt:now_(),clients:dcs});
-  logAct('act','Submitted disbursement list &#8212; '+sel.length+' clients');
+  disbursements[disbursements.length-1]&&_markDirty('disbursements',disbursements[disbursements.length-1].id);_markDirty('meta','');logAct('act','Submitted disbursement list &#8212; '+sel.length+' clients');
   save();closeModal('disbmod');
   toast('Disbursement list submitted to Credit Controller for approval!');
   renderDisbursements(document.getElementById('mainct'));
@@ -3877,6 +3986,1342 @@ function buildQuarterlyReport(){
 }
 
 
+// ===== LONG TERM LOANS MODULE =====
+var LT_TIERS = [
+  {min:20000,   max:50000,   rate:0.067, svcRate:0.10, label:'K20,000–K50,000'},
+  {min:51000,   max:150000,  rate:0.063, svcRate:0.10, label:'K51,000–K150,000'},
+  {min:151000,  max:250000,  rate:0.053, svcRate:0.08, label:'K151,000–K250,000'},
+  {min:251000,  max:1000000, rate:0.05,  svcRate:0.05, label:'K251,000–K1,000,000'}
+];
+var _ltEditId=null, _ltViewId=null;
+
+function ltGetTier(amt){
+  for(var i=0;i<LT_TIERS.length;i++){if(amt>=LT_TIERS[i].min&&amt<=LT_TIERS[i].max)return LT_TIERS[i];}
+  return null;
+}
+
+function ltCalcLoan(amt,months){
+  var tier=ltGetTier(amt);if(!tier)return null;
+  var svc=Math.round(amt*tier.svcRate*100)/100;
+  var disbursed=Math.round((amt-svc)*100)/100;
+  var totalInterest=Math.round(amt*tier.rate*months*100)/100;
+  var totalDue=Math.round((amt+totalInterest)*100)/100;
+  var monthly=Math.round(totalDue/months*100)/100;
+  return {tier:tier,svc:svc,disbursed:disbursed,totalInterest:totalInterest,totalDue:totalDue,monthly:monthly};
+}
+
+function ltMonthDueDate(dateGiven, monthNum){
+  var d=new Date(dateGiven+'T00:00:00');
+  d.setMonth(d.getMonth()+monthNum);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+function ltStatus(loan){
+  if(loan.status==='cleared') return 'cleared';
+  if(loan.status==='cancelled') return 'cancelled';
+  var today=td_();
+  var totalPaid=0;
+  for(var i=0;i<(loan.payments||[]).length;i++) totalPaid+=(loan.payments[i].amountPaid||0);
+  if(totalPaid>=(loan.totalDue-1)) return 'cleared';
+  // Check if any payment is overdue
+  for(var i=0;i<(loan.payments||[]).length;i++){
+    var p=loan.payments[i];
+    if(!p.amountPaid&&p.dueDate&&today>p.dueDate) return 'overdue';
+  }
+  return 'active';
+}
+
+function ltTotalPaid(loan){
+  var t=0;for(var i=0;i<(loan.payments||[]).length;i++)t+=(loan.payments[i].amountPaid||0);return t;
+}
+
+function ltBalance(loan){ return Math.max(0,Math.round(((loan.totalDue||0)-ltTotalPaid(loan))*100)/100); }
+
+function renderLongTermLoans(mc){
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var filterStatus=window._ltFilter||'all';
+  var filterType=window._ltType||'all';
+
+  // Stats
+  var stats={active:0,overdue:0,cleared:0,totalOut:0,totalBalance:0};
+  for(var i=0;i<longTermLoans.length;i++){
+    var l=longTermLoans[i];
+    var st=ltStatus(l);
+    if(st==='active')stats.active++;
+    else if(st==='overdue')stats.overdue++;
+    else if(st==='cleared')stats.cleared++;
+    if(st==='active'||st==='overdue'){stats.totalOut+=(l.amountGiven||0);stats.totalBalance+=ltBalance(l);}
+  }
+
+  var h='<div style="background:linear-gradient(135deg,#1a3324,#1e8449);border-radius:14px;padding:18px 22px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h+='<div><div style="font-size:20px;font-weight:800">&#128188; Long Term Loans</div><div style="font-size:11px;opacity:.75;margin-top:2px">Kitwe Head Office &mdash; Finance Manager</div></div>';
+  if(canManage) h+='<button class="btn" style="background:#fff;color:#1a3324;font-weight:700;padding:10px 20px;border-radius:10px;border:none" onclick="openLTModal()">+ New Long Term Loan</button>';
+  h+='</div>';
+
+  // Stats
+  h+='<div class="sg" style="margin-bottom:16px">';
+  h+='<div class="sc c4"><div class="si">&#128188;</div><div class="sl">Active</div><div class="sv">'+stats.active+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#9888;</div><div class="sl">Overdue</div><div class="sv" style="color:#fff">'+stats.overdue+'</div></div>';
+  h+='<div class="sc c2"><div class="si">&#10003;</div><div class="sl">Cleared</div><div class="sv">'+stats.cleared+'</div></div>';
+  h+='<div class="sc c1"><div class="si">&#128176;</div><div class="sl">Total Outstanding</div><div class="sv">'+zmw(stats.totalOut)+'</div></div>';
+  h+='<div class="sc c3"><div class="si">&#128179;</div><div class="sl">Total Balance Due</div><div class="sv">'+zmw(stats.totalBalance)+'</div></div>';
+  h+='</div>';
+
+  // Filters
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">';
+  [['all','All'],['active','Active'],['overdue','Overdue'],['cleared','Cleared']].forEach(function(f){
+    var isAct=filterStatus===f[0];
+    h+='<button onclick="window._ltFilter=\''+f[0]+'\';renderLongTermLoans(document.getElementById(\'mainct\'))" style="padding:6px 14px;border-radius:20px;border:1.5px solid '+(isAct?'var(--ok)':'var(--bd)')+';background:'+(isAct?'var(--ok)':'#fff')+';color:'+(isAct?'#fff':'var(--tx)')+';font-size:12px;font-weight:600;cursor:pointer">'+f[1]+'</button>';
+  });
+  h+='</div>';
+
+  // Table
+  var filtered=longTermLoans.filter(function(l){
+    var st=ltStatus(l);
+    return filterStatus==='all'||st===filterStatus;
+  }).sort(function(a,b){return (b.dateGiven||'')>(a.dateGiven||'')?1:-1;});
+
+  if(!filtered.length){
+    h+='<div class="cd"><div style="padding:40px;text-align:center"><div style="font-size:40px;margin-bottom:10px">&#128188;</div><div style="font-weight:600;color:var(--mu)">No long term loans found</div><div style="font-size:12px;color:var(--mu);margin-top:4px">'+(!longTermLoans.length&&canManage?'Click "+ New Long Term Loan" to get started':'No records match this filter')+'</div></div></div>';
+  } else {
+    h+='<div class="tw"><table><thead><tr><th>Client</th><th>Amount Given</th><th>Disbursed</th><th>Term</th><th>Monthly Due</th><th>Total Paid</th><th>Balance</th><th>Date Given</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for(var i=0;i<filtered.length;i++){
+      var l=filtered[i];
+      var st=ltStatus(l);
+      var stLabel=st==='active'?'Active':st==='overdue'?'Overdue':st==='cleared'?'Cleared ✓':'Cancelled';
+      var stCls=st==='active'?'bgg':st==='overdue'?'bgr':st==='cleared'?'bgb':'bgx';
+      var bal=ltBalance(l);
+      var paid=ltTotalPaid(l);
+      var tier=ltGetTier(l.amountGiven)||{rate:0,svcRate:0};
+      h+='<tr>';
+      h+='<td><strong>'+esc(l.clientName)+'</strong><div style="font-size:10px;color:var(--mu)">'+esc(l.contact||'')+'</div></td>';
+      h+='<td style="font-family:monospace;font-weight:700">'+zmw(l.amountGiven)+'<div style="font-size:9px;color:var(--mu)">'+(tier.rate*100)+'%/mo</div></td>';
+      h+='<td style="font-family:monospace">'+zmw(l.disbursedAmount)+'</td>';
+      h+='<td style="font-size:12px">'+l.termMonths+' month'+(l.termMonths>1?'s':'')+'</td>';
+      h+='<td style="font-family:monospace">'+zmw(l.monthlyPayment)+'</td>';
+      h+='<td style="font-family:monospace;color:var(--ok)">'+zmw(paid)+'</td>';
+      h+='<td style="font-family:monospace;font-weight:700;color:'+(bal>0?'var(--r)':'var(--ok)')+'">'+zmw(bal)+'</td>';
+      h+='<td style="font-size:12px">'+fmtD(l.dateGiven)+'</td>';
+      h+='<td><span class="bg '+stCls+'" style="font-size:9px">'+stLabel+'</span></td>';
+      h+='<td>';
+      if(canManage) h+='<button class="ab" style="color:var(--in);border-color:var(--in);margin-bottom:3px;width:100%" onclick="ltView(\''+l.id+'\')">&#128065; View / Pay</button>';
+      if(canManage&&st!=='cleared'&&st!=='cancelled') h+='<button class="ab" style="color:var(--mu);width:100%" onclick="openLTModal(\''+l.id+'\')">&#9998; Edit</button>';
+      h+='</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+  mc.innerHTML=h;
+}
+
+function openLTModal(editId){
+  _ltEditId=editId||null;
+  var loan=editId?longTermLoans.filter(function(l){return l.id===editId;})[0]:null;
+  var existing=document.getElementById('ltmod');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.innerHTML='<div class="mo op" id="ltmod"><div class="md mlg" style="margin-top:10px">'
+    +'<div class="mtt">&#128188; '+(loan?'Edit':'New')+' Long Term Loan</div>'
+    +'<div class="fr3">'
+    +'<div class="fg"><label class="fl">Client Full Name *</label><input class="fi" id="lt_name" value="'+esc(loan?loan.clientName:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Contact *</label><input class="fi" id="lt_contact" value="'+esc(loan?loan.contact:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Location / Address *</label><input class="fi" id="lt_location" value="'+esc(loan?loan.location:'')+'"></div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Collateral Description *</label><textarea class="fi" id="lt_collateral" rows="2" style="resize:vertical">'+esc(loan?loan.collateral:'')+'</textarea></div>'
+    +'<div class="fr3">'
+    +'<div class="fg"><label class="fl">Collateral Type</label><select class="fsel" id="lt_coltype">'
+    +'<option value="Other"'+(loan&&loan.collateralType==='Other'?' selected':'')+'>Other</option>'
+    +'<option value="Vehicle"'+(loan&&loan.collateralType==='Vehicle'?' selected':'')+'>Vehicle (White Book + Tracker)</option>'
+    +'<option value="Title Deed"'+(loan&&loan.collateralType==='Title Deed'?' selected':'')+'>Title Deed (Search + Caveat)</option>'
+    +'<option value="Appliances"'+(loan&&loan.collateralType==='Appliances'?' selected':'')+'>Appliances</option>'
+    +'</select></div>'
+    +'<div class="fg"><label class="fl">Tracker Installed?</label><select class="fsel" id="lt_tracker">'
+    +'<option value="N/A"'+((!loan||loan.trackerStatus==='N/A')?' selected':'')+'>N/A</option>'
+    +'<option value="Yes"'+(loan&&loan.trackerStatus==='Yes'?' selected':'')+'>Yes</option>'
+    +'<option value="No"'+(loan&&loan.trackerStatus==='No'?' selected':'')+'>No</option>'
+    +'</select></div>'
+    +'<div class="fg"><label class="fl">Caveat / Search Done?</label><select class="fsel" id="lt_caveat">'
+    +'<option value="N/A"'+((!loan||loan.caveatStatus==='N/A')?' selected':'')+'>N/A</option>'
+    +'<option value="Yes"'+(loan&&loan.caveatStatus==='Yes'?' selected':'')+'>Yes</option>'
+    +'<option value="No"'+(loan&&loan.caveatStatus==='No'?' selected':'')+'>No</option>'
+    +'</select></div>'
+    +'</div>'
+    +'<div class="fr3">'
+    +'<div class="fg"><label class="fl">Amount Given (ZMW) *</label><input class="fi" type="number" id="lt_amt" min="20000" max="1000000" value="'+(loan?loan.amountGiven:'')+'" oninput="ltCalcModal()"></div>'
+    +'<div class="fg"><label class="fl">Term (Months) *</label><select class="fsel" id="lt_months" onchange="ltCalcModal()">';
+  var mhtml='';
+  for(var m=1;m<=12;m++) mhtml+='<option value="'+m+'"'+(loan&&loan.termMonths===m?' selected':'')+'>'+m+' Month'+(m>1?'s':'')+'</option>';
+  div.innerHTML=div.innerHTML+mhtml
+    +'</select></div>'
+    +'<div class="fg"><label class="fl">Date Given *</label><input class="fi" type="date" id="lt_date" value="'+(loan?loan.dateGiven:td_())+'" onchange="ltCalcModal()"></div>'
+    +'</div>'
+    +'<div style="background:rgba(30,132,73,.08);border:1.5px solid var(--ok);border-radius:10px;padding:14px;margin-bottom:14px" id="lt_summary">'
+    +'<div style="font-size:12px;color:var(--mu)">Fill in amount and term to see calculation</div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Notes</label><input class="fi" id="lt_notes" value="'+esc(loan?loan.notes:'')+'"></div>'
+    +'<div class="mft"><button class="btn btg" onclick="closeLTModal()">Cancel</button><button class="btn btr" style="font-size:15px;padding:12px 24px;font-weight:700" onclick="saveLT()">&#128188; '+(loan?'Update':'Issue')+' Loan</button></div>'
+    +'</div></div>';
+  document.body.appendChild(div.firstChild);
+  ltCalcModal();
+}
+
+function closeLTModal(){var m=document.getElementById('ltmod');if(m)m.remove();}
+
+function ltCalcModal(){
+  var amt=parseFloat(document.getElementById('lt_amt')&&document.getElementById('lt_amt').value)||0;
+  var months=parseInt(document.getElementById('lt_months')&&document.getElementById('lt_months').value)||1;
+  var sum=document.getElementById('lt_summary');if(!sum)return;
+  if(!amt){sum.innerHTML='<div style="font-size:12px;color:var(--mu)">Fill in amount and term to see calculation</div>';return;}
+  var calc=ltCalcLoan(amt,months);
+  if(!calc){sum.innerHTML='<div style="font-size:12px;color:var(--r)">Amount must be between K20,000 and K1,000,000</div>';return;}
+  sum.innerHTML='<div style="display:flex;gap:14px;flex-wrap:wrap">'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Tier</div><div style="font-size:13px;font-weight:700;color:var(--ok)">'+calc.tier.label+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Interest Rate</div><div style="font-size:13px;font-weight:700;color:var(--wn)">'+(calc.tier.rate*100)+'% / month</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Service Charge ('+(calc.tier.svcRate*100)+'%)</div><div style="font-size:13px;font-weight:700;color:var(--r)">'+zmw(calc.svc)+' deducted upfront</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Disbursed to Client</div><div style="font-size:16px;font-weight:800;color:var(--in)">'+zmw(calc.disbursed)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Monthly Payment</div><div style="font-size:16px;font-weight:800;color:var(--tx)">'+zmw(calc.monthly)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Total Expected ('+months+' mo)</div><div style="font-size:16px;font-weight:800;color:var(--r)">'+zmw(calc.totalDue)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Expected Profit</div><div style="font-size:16px;font-weight:800;color:var(--ok)">'+zmw(calc.totalInterest+calc.svc)+'</div></div>'
+    +'</div>';
+}
+
+function saveLT(){
+  var name=(document.getElementById('lt_name').value||'').trim();
+  var contact=(document.getElementById('lt_contact').value||'').trim();
+  var location=(document.getElementById('lt_location').value||'').trim();
+  var collateral=(document.getElementById('lt_collateral').value||'').trim();
+  var amt=parseFloat(document.getElementById('lt_amt').value)||0;
+  var months=parseInt(document.getElementById('lt_months').value)||1;
+  var date=document.getElementById('lt_date').value;
+  if(!name||!contact||!location||!collateral||!amt||!date){toast('Please fill all required fields.');return;}
+  var calc=ltCalcLoan(amt,months);
+  if(!calc){toast('Amount must be between K20,000 and K1,000,000.');return;}
+  // Build payment schedule
+  var pmts=[];
+  for(var m=1;m<=months;m++){
+    pmts.push({month:m,dueDate:ltMonthDueDate(date,m),amountDue:calc.monthly,amountPaid:0,datePaid:null});
+  }
+  if(_ltEditId){
+    var loan=longTermLoans.filter(function(l){return l.id===_ltEditId;})[0];
+    if(loan){
+      loan.clientName=name;loan.contact=contact;loan.location=location;loan.collateral=collateral;
+      loan.collateralType=document.getElementById('lt_coltype').value;
+      loan.trackerStatus=document.getElementById('lt_tracker').value;
+      loan.caveatStatus=document.getElementById('lt_caveat').value;
+      loan.amountGiven=amt;loan.termMonths=months;loan.dateGiven=date;
+      loan.serviceCharge=calc.svc;loan.disbursedAmount=calc.disbursed;
+      loan.interestRate=calc.tier.rate;loan.serviceChargeRate=calc.tier.svcRate;
+      loan.monthlyPayment=calc.monthly;loan.totalDue=calc.totalDue;
+      loan.totalInterest=calc.totalInterest;loan.notes=(document.getElementById('lt_notes').value||'').trim();
+      // Rebuild payment schedule if months changed
+      if(loan.payments.length!==months) loan.payments=pmts;
+    }
+    logAct('act','Updated long term loan for '+name);
+  } else {
+    var nl={
+      id:'LT-'+Date.now(),clientName:name,contact:contact,location:location,collateral:collateral,
+      collateralType:document.getElementById('lt_coltype').value,
+      trackerStatus:document.getElementById('lt_tracker').value,
+      caveatStatus:document.getElementById('lt_caveat').value,
+      amountGiven:amt,termMonths:months,dateGiven:date,
+      serviceCharge:calc.svc,disbursedAmount:calc.disbursed,
+      interestRate:calc.tier.rate,serviceChargeRate:calc.tier.svcRate,
+      monthlyPayment:calc.monthly,totalDue:calc.totalDue,totalInterest:calc.totalInterest,
+      payments:pmts,status:'active',notes:(document.getElementById('lt_notes').value||'').trim(),
+      createdBy:cu.display,createdAt:now_()
+    };
+    longTermLoans.push(nl);
+    logAct('act','Issued long term loan to '+name+' — '+zmw(amt)+' for '+months+' month(s)');
+  }
+  _markDirty('meta','');save();closeLTModal();toast('Loan saved!');renderLongTermLoans(document.getElementById('mainct'));
+}
+
+function ltView(id){
+  var loan=longTermLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  _ltViewId=id;
+  var st=ltStatus(loan);
+  var paid=ltTotalPaid(loan);
+  var bal=ltBalance(loan);
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var mc=document.getElementById('mainct');
+  var h='<button class="bk" onclick="renderLongTermLoans(document.getElementById(\'mainct\'))">&#8592; Back</button>';
+  h+='<div style="background:linear-gradient(135deg,#1a3324,#1e8449);color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:14px">';
+  h+='<div style="font-size:11px;opacity:.7">LONG TERM LOAN &mdash; '+esc(loan.id)+'</div>';
+  h+='<div style="font-size:22px;font-weight:800;margin-top:2px">'+esc(loan.clientName)+'</div>';
+  h+='<div style="font-size:12px;opacity:.8;margin-top:4px">'+esc(loan.contact)+' &nbsp;&#183;&nbsp; '+esc(loan.location)+'</div>';
+  h+='</div>';
+  // Summary cards
+  h+='<div class="sg" style="margin-bottom:14px">';
+  h+='<div class="sc c1"><div class="si">&#128176;</div><div class="sl">Amount Given</div><div class="sv">'+zmw(loan.amountGiven)+'</div><div class="ss">'+(loan.interestRate*100)+'%/mo rate</div></div>';
+  h+='<div class="sc c2"><div class="si">&#128199;</div><div class="sl">Disbursed</div><div class="sv">'+zmw(loan.disbursedAmount)+'</div><div class="ss">Service charge: '+zmw(loan.serviceCharge)+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#128197;</div><div class="sl">Monthly Due</div><div class="sv">'+zmw(loan.monthlyPayment)+'</div><div class="ss">'+loan.termMonths+' months</div></div>';
+  h+='<div class="sc c3"><div class="si">&#10003;</div><div class="sl">Total Paid</div><div class="sv" style="color:var(--ok)">'+zmw(paid)+'</div><div class="ss">of '+zmw(loan.totalDue)+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,'+(bal>0?'#c0392b,#e74c3c':'#1e8449,#27ae60')+')"><div class="si">&#128179;</div><div class="sl">Balance</div><div class="sv" style="color:#fff">'+zmw(bal)+'</div><div class="ss" style="color:rgba(255,255,255,.8)">'+(st==='cleared'?'Fully cleared':'Outstanding')+'</div></div>';
+  h+='</div>';
+  // Collateral info
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128274; Collateral &amp; Compliance</span></div><div class="cdb">';
+  h+='<div class="rm"><span class="rml">Collateral</span><span class="rmv" style="font-weight:600;color:var(--wn)">'+esc(loan.collateral)+'</span></div>';
+  h+='<div class="rm"><span class="rml">Type</span><span class="rmv">'+esc(loan.collateralType||'Other')+'</span></div>';
+  if(loan.collateralType==='Vehicle'){h+='<div class="rm"><span class="rml">Tracker Installed</span><span class="rmv" style="font-weight:600;color:'+(loan.trackerStatus==='Yes'?'var(--ok)':'var(--r)')+'">'+esc(loan.trackerStatus||'N/A')+'</span></div>';}
+  if(loan.collateralType==='Title Deed'){h+='<div class="rm"><span class="rml">Caveat / Search Done</span><span class="rmv" style="font-weight:600;color:'+(loan.caveatStatus==='Yes'?'var(--ok)':'var(--r)')+'">'+esc(loan.caveatStatus||'N/A')+'</span></div>';}
+  if(loan.notes) h+='<div class="rm"><span class="rml">Notes</span><span class="rmv">'+esc(loan.notes)+'</span></div>';
+  h+='</div></div>';
+  // Monthly payment schedule
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128197; Monthly Payment Schedule</span></div>';
+  h+='<div class="tw"><table><thead><tr><th>Month</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Date Paid</th><th>Status</th>'+(canManage?'<th>Action</th>':'')+'</tr></thead><tbody>';
+  var today=td_();
+  for(var i=0;i<(loan.payments||[]).length;i++){
+    var p=loan.payments[i];
+    var pSt=p.amountPaid>=(p.amountDue-1)?'paid':today>p.dueDate?'overdue':'pending';
+    var pCls=pSt==='paid'?'bgg':pSt==='overdue'?'bgr':'bgx';
+    var pLabel=pSt==='paid'?'Paid ✓':pSt==='overdue'?'Overdue':'Pending';
+    h+='<tr>';
+    h+='<td style="font-weight:700">Month '+p.month+'</td>';
+    h+='<td style="font-size:12px;color:'+(pSt==='overdue'?'var(--r)':'var(--tx)')+'">'+fmtD(p.dueDate)+'</td>';
+    h+='<td style="font-family:monospace">'+zmw(p.amountDue)+'</td>';
+    h+='<td style="font-family:monospace;color:'+(p.amountPaid>0?'var(--ok)':'var(--mu)')+'">'+zmw(p.amountPaid||0)+'</td>';
+    h+='<td style="font-size:12px">'+( p.datePaid?fmtD(p.datePaid):'—')+'</td>';
+    h+='<td><span class="bg '+pCls+'" style="font-size:9px">'+pLabel+'</span></td>';
+    if(canManage){
+      h+='<td>';
+      if(pSt!=='paid') h+='<button class="ab" style="color:var(--ok);border-color:var(--ok);white-space:nowrap" onclick="ltRecordPayment(\''+id+'\','+i+')">Record Payment</button>';
+      else h+='<button class="ab" style="color:var(--mu)" onclick="ltUndoPayment(\''+id+'\','+i+')">Undo</button>';
+      h+='</td>';
+    }
+    h+='</tr>';
+  }
+  h+='</tbody></table></div></div>';
+  if(canManage&&st!=='cleared'&&st!=='cancelled'){
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
+    h+='<button class="btn" style="flex:1;padding:12px;background:var(--s2);color:var(--tx);border:1px solid var(--bd)" onclick="openLTModal(\''+id+'\')">&#9998; Edit Loan</button>';
+    h+='<button class="btn btr" style="flex:1;padding:12px" onclick="ltCancelLoan(\''+id+'\')">&#10007; Cancel Loan</button>';
+    h+='</div>';
+  }
+  mc.innerHTML=h;
+}
+
+function ltRecordPayment(loanId, monthIdx){
+  var loan=longTermLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;
+  var p=loan.payments[monthIdx];
+  var defAmt=p.amountDue-(p.amountPaid||0);
+  var amtStr=prompt('Record payment for Month '+p.month+'\nAmount Due: '+zmw(p.amountDue)+'\nAlready Paid: '+zmw(p.amountPaid||0)+'\nBalance: '+zmw(defAmt)+'\n\nEnter amount paid:',defAmt);
+  if(amtStr===null)return;
+  var amt=parseFloat(amtStr)||0;
+  if(amt<=0){toast('Enter a valid amount.');return;}
+  p.amountPaid=(p.amountPaid||0)+amt;
+  p.datePaid=td_();
+  // Auto-clear if fully paid
+  var totalPaid=ltTotalPaid(loan);
+  if(totalPaid>=(loan.totalDue-1)) loan.status='cleared';
+  logAct('act','LT payment — '+loan.clientName+' Month '+p.month+' — '+zmw(amt));
+  _markDirty('meta','');save();toast('Payment of '+zmw(amt)+' recorded for Month '+p.month+'!');ltView(loanId);
+}
+
+function ltUndoPayment(loanId, monthIdx){
+  var loan=longTermLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;
+  var p=loan.payments[monthIdx];
+  if(!confirm('Undo payment for Month '+p.month+'?\nThis will clear the paid amount and date.'))return;
+  p.amountPaid=0;p.datePaid=null;
+  if(loan.status==='cleared') loan.status='active';
+  _markDirty('meta','');save();toast('Payment undone for Month '+p.month);ltView(loanId);
+}
+
+function ltCancelLoan(loanId){
+  var loan=longTermLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;
+  if(!confirm('Cancel loan for '+loan.clientName+'?\n\nBalance remaining: '+zmw(ltBalance(loan))+'\n\nThis will mark the loan as cancelled.'))return;
+  loan.status='cancelled';loan.cancelledDate=td_();loan.cancelledBy=cu.display;
+  logAct('act','LT loan CANCELLED — '+loan.clientName);
+  _markDirty('meta','');save();toast('Loan cancelled.');renderLongTermLoans(document.getElementById('mainct'));
+}
+// ===== END LONG TERM LOANS MODULE =====
+
+// ===== INSTANT LOANS MODULE =====
+var IL_RATES = {1:0.15, 2:0.25, 3:0.30, 4:0.40}; // week -> interest rate
+var IL_PENALTY = 0.10;
+var _ilEditId = null;
+
+function ilBranches(){
+  // All branches including Kitwe
+  var all = ALL_B.slice();
+  if(all.indexOf('Kitwe')<0) all.unshift('Kitwe');
+  return all;
+}
+
+function ilDueDate(dateGiven, weeks){
+  var d = new Date(dateGiven+'T00:00:00');
+  d.setDate(d.getDate() + weeks*7);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+function ilStatus(loan){
+  if(loan.status==='cleared') return 'cleared';
+  if(loan.status==='cancelled') return 'cancelled';
+  var today = td_();
+  var due = loan.dueDate;
+  if(today <= due) return 'active';
+  var overDays = Math.floor((new Date(today+'T00:00:00') - new Date(due+'T00:00:00'))/(1000*60*60*24));
+  if(overDays >= 2 && overDays < 9) return 'overdue_penalty'; // 2-7 days after due
+  if(overDays >= 9) return 'overdue_cancel'; // 1 week+ after due
+  return 'overdue';
+}
+
+function ilTotalDue(loan){
+  // If settled early, use actual weeks elapsed
+  var weeks = loan.weeksUsed || loan.termWeeks;
+  var rate = IL_RATES[weeks] || IL_RATES[loan.termWeeks];
+  var base = (loan.amountGiven||0) * (1 + rate);
+  var st = ilStatus(loan);
+  if(st==='overdue_penalty'||st==='overdue_cancel') base = base * (1 + IL_PENALTY);
+  return Math.round(base*100)/100;
+}
+
+function ilEarlySettleAmount(loan){
+  // Calculate what client owes if settling now (use elapsed weeks, min 1)
+  var today = td_();
+  var given = loan.dateGiven;
+  var days = Math.max(1, Math.floor((new Date(today+'T00:00:00')-new Date(given+'T00:00:00'))/(1000*60*60*24)));
+  var weeksElapsed = Math.min(loan.termWeeks, Math.max(1, Math.ceil(days/7)));
+  var rate = IL_RATES[weeksElapsed] || IL_RATES[loan.termWeeks];
+  return Math.round(loan.amountGiven * (1+rate) * 100)/100;
+}
+
+function renderInstantLoans(mc){
+  var loans_il = instantLoans.slice().sort(function(a,b){return (b.dateGiven||'')>(a.dateGiven||'')?1:-1;});
+  var canManage = cu && (cu.role==='admin'||cu.role==='finance_manager');
+
+  // Filters
+  var filterStatus = window._ilFilter||'all';
+  var filterBranch = window._ilBranch||'ALL';
+
+  // Stats
+  var stats={active:0,overdue:0,cleared:0,cancelled:0,totalOut:0,totalDue:0};
+  for(var i=0;i<loans_il.length;i++){
+    var l=loans_il[i];
+    var st=ilStatus(l);
+    if(st==='active') stats.active++;
+    else if(st==='overdue_penalty'||st==='overdue_cancel'||st==='overdue') stats.overdue++;
+    else if(st==='cleared') stats.cleared++;
+    else if(st==='cancelled') stats.cancelled++;
+    if(st==='active'||st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel'){
+      stats.totalOut+=(l.amountGiven||0);
+      stats.totalDue+=ilTotalDue(l);
+    }
+  }
+
+  var h='<div style="background:linear-gradient(135deg,#1a3a5c,#2980b9);border-radius:14px;padding:18px 22px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h+='<div><div style="font-size:20px;font-weight:800">&#9889; Instant Loans</div><div style="font-size:11px;opacity:.75;margin-top:2px">Kitwe Head Office &mdash; Finance Manager</div></div>';
+  if(canManage) h+='<button class="btn" style="background:#fff;color:#1a3a5c;font-weight:700;padding:10px 20px;border-radius:10px;border:none" onclick="openILModal()">+ New Instant Loan</button>';
+  h+='</div>';
+
+  // Stats row
+  h+='<div class="sg" style="margin-bottom:16px">';
+  h+='<div class="sc c2"><div class="si">&#9889;</div><div class="sl">Active</div><div class="sv">'+stats.active+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#9888;</div><div class="sl">Overdue</div><div class="sv" style="color:#fff">'+stats.overdue+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#10003;</div><div class="sl">Cleared</div><div class="sv">'+stats.cleared+'</div></div>';
+  h+='<div class="sc c1"><div class="si">&#128176;</div><div class="sl">Total Outstanding</div><div class="sv">'+zmw(stats.totalOut)+'</div></div>';
+  h+='<div class="sc c3"><div class="si">&#128179;</div><div class="sl">Total Due (with interest)</div><div class="sv">'+zmw(stats.totalDue)+'</div></div>';
+  h+='</div>';
+
+  // Filters
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">';
+  var statFilters=[['all','All'],['active','Active'],['overdue','Overdue'],['cleared','Cleared'],['cancelled','Cancelled']];
+  for(var fi=0;fi<statFilters.length;fi++){
+    var isAct=filterStatus===statFilters[fi][0];
+    h+='<button onclick="window._ilFilter=\''+statFilters[fi][0]+'\';renderInstantLoans(document.getElementById(\'mainct\'))" style="padding:6px 14px;border-radius:20px;border:1.5px solid '+(isAct?'var(--in)':'var(--bd)')+';background:'+(isAct?'var(--in)':'#fff')+';color:'+(isAct?'#fff':'var(--tx)')+';font-size:12px;font-weight:600;cursor:pointer">'+statFilters[fi][1]+'</button>';
+  }
+  h+='<select onchange="window._ilBranch=this.value;renderInstantLoans(document.getElementById(\'mainct\'))" style="padding:6px 12px;border:1.5px solid var(--bd);border-radius:20px;font-size:12px;background:#fff">';
+  h+='<option value="ALL"'+(filterBranch==='ALL'?' selected':'')+'>All Branches</option>';
+  var ilBrs=ilBranches();
+  for(var bi=0;bi<ilBrs.length;bi++) h+='<option value="'+esc(ilBrs[bi])+'"'+(filterBranch===ilBrs[bi]?' selected':'')+'>'+esc(ilBrs[bi])+'</option>';
+  h+='</select>';
+  h+='</div>';
+
+  // Table
+  var filtered=loans_il.filter(function(l){
+    var st=ilStatus(l);
+    var stMatch = filterStatus==='all' || filterStatus==='overdue'?(st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel'):st===filterStatus;
+    var brMatch = filterBranch==='ALL'||l.branch===filterBranch;
+    return stMatch&&brMatch;
+  });
+
+  if(!filtered.length){
+    h+='<div class="cd"><div style="padding:40px;text-align:center"><div style="font-size:40px;margin-bottom:10px">&#9889;</div><div style="font-weight:600;color:var(--mu)">No instant loans found</div><div style="font-size:12px;color:var(--mu);margin-top:4px">'+(!loans_il.length&&canManage?'Click "+ New Instant Loan" to get started':'No records match this filter')+'</div></div></div>';
+  } else {
+    h+='<div class="tw"><table><thead><tr><th>Client</th><th>Branch</th><th>Amount</th><th>Term</th><th>Interest</th><th>Total Due</th><th>Date Given</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for(var i=0;i<filtered.length;i++){
+      var l=filtered[i];
+      var st=ilStatus(l);
+      var stLabel,stCls;
+      if(st==='active'){stLabel='Active';stCls='bgg';}
+      else if(st==='overdue'){stLabel='Overdue';stCls='bgo';}
+      else if(st==='overdue_penalty'){stLabel='Overdue +Penalty';stCls='bgr';}
+      else if(st==='overdue_cancel'){stLabel='Cancel Risk';stCls='bgr';}
+      else if(st==='cleared'){stLabel='Cleared ✓';stCls='bgb';}
+      else{stLabel='Cancelled';stCls='bgx';}
+      var totalDue=ilTotalDue(l);
+      var rate=IL_RATES[l.termWeeks]||0;
+      h+='<tr>';
+      h+='<td><strong>'+esc(l.clientName)+'</strong><div style="font-size:10px;color:var(--mu)">'+esc(l.clientPhone||'')+'</div></td>';
+      h+='<td style="font-size:12px">'+esc(l.branch||'')+'</td>';
+      h+='<td style="font-family:monospace;font-weight:700">'+zmw(l.amountGiven)+'</td>';
+      h+='<td style="font-size:12px">'+l.termWeeks+' week'+(l.termWeeks>1?'s':'')+'</td>';
+      h+='<td style="font-size:12px;color:var(--wn)">'+(rate*100)+'%'+(l.weeksUsed&&l.weeksUsed<l.termWeeks?'<div style="font-size:9px;color:var(--ok)">settled week '+l.weeksUsed+'</div>':'')+'</td>';
+      h+='<td style="font-family:monospace;font-weight:700;color:'+(st==='cleared'?'var(--ok)':st.indexOf('overdue')>=0?'var(--r)':'var(--tx)')+'">'+zmw(totalDue)+'</td>';
+      h+='<td style="font-size:12px">'+fmtD(l.dateGiven)+'</td>';
+      h+='<td style="font-size:12px;color:'+(st.indexOf('overdue')>=0?'var(--r)':'var(--tx)')+'">'+fmtD(l.dueDate)+'</td>';
+      h+='<td><span class="bg '+stCls+'" style="font-size:9px;white-space:nowrap">'+stLabel+'</span></td>';
+      h+='<td>';
+      if(canManage&&(st==='active'||st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel')){
+        h+='<button class="ab" style="color:var(--ok);border-color:var(--ok);margin-bottom:3px;width:100%" onclick="ilSettle(\''+l.id+'\')">&#10003; Settle</button>';
+        h+='<button class="ab" style="color:var(--in);border-color:var(--in);margin-bottom:3px;width:100%" onclick="ilEarlySettle(\''+l.id+'\')">&#128197; Early Settle</button>';
+        if(st==='overdue_cancel') h+='<button class="ab" style="color:var(--r);border-color:var(--r);width:100%" onclick="ilCancel(\''+l.id+'\')">&#10007; Cancel</button>';
+      }
+      if(canManage) h+='<button class="ab" style="color:var(--mu);margin-top:2px;width:100%" onclick="ilView(\''+l.id+'\')">&#128065; View</button>';
+      h+='</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+
+  mc.innerHTML=h;
+}
+
+function openILModal(editId){
+  _ilEditId=editId||null;
+  var loan=editId?instantLoans.filter(function(l){return l.id===editId;})[0]:null;
+  var h='<div class="mo op" id="ilmod"><div class="md mlg" style="margin-top:10px">';
+  h+='<div class="mtt">&#9889; '+(loan?'Edit':'New')+' Instant Loan</div>';
+  h+='<div class="fr3">';
+  h+='<div class="fg"><label class="fl">Client Full Name *</label><input class="fi" id="il_name" value="'+esc(loan?loan.clientName:'')+'"></div>';
+  h+='<div class="fg"><label class="fl">Phone *</label><input class="fi" id="il_phone" type="tel" value="'+esc(loan?loan.clientPhone:'')+'"></div>';
+  h+='<div class="fg"><label class="fl">NRC / ID</label><input class="fi" id="il_nrc" value="'+esc(loan?loan.nrc:'')+'"></div>';
+  h+='</div>';
+  h+='<div class="fr3">';
+  h+='<div class="fg"><label class="fl">Branch *</label><select class="fsel" id="il_branch">';
+  var ilBrs=ilBranches();
+  for(var i=0;i<ilBrs.length;i++) h+='<option'+(loan&&loan.branch===ilBrs[i]?' selected':(!loan&&ilBrs[i]==='Kitwe'?' selected':''))+'>'+esc(ilBrs[i])+'</option>';
+  h+='</select></div>';
+  h+='<div class="fg"><label class="fl">Location / Address *</label><input class="fi" id="il_location" value="'+esc(loan?loan.location:'')+'"></div>';
+  h+='<div class="fg"><label class="fl">Occupation</label><input class="fi" id="il_occ" value="'+esc(loan?loan.occupation:'')+'"></div>';
+  h+='</div>';
+  h+='<div class="fg"><label class="fl">Collateral Description *</label><textarea class="fi" id="il_collateral" rows="2" style="resize:vertical">'+esc(loan?loan.collateral:'')+'</textarea></div>';
+  h+='<div class="fr3">';
+  h+='<div class="fg"><label class="fl">Amount Given (ZMW) *</label><input class="fi" type="number" id="il_amt" min="100" max="1000000" value="'+(loan?loan.amountGiven:'')+'" oninput="ilCalc()"></div>';
+  h+='<div class="fg"><label class="fl">Loan Term *</label><select class="fsel" id="il_weeks" onchange="ilCalc()">';
+  for(var w=1;w<=4;w++) h+='<option value="'+w+'"'+(loan&&loan.termWeeks===w?' selected':(!loan&&w===1?' selected':''))+'>'+w+' Week'+(w>1?'s':'')+' ('+(IL_RATES[w]*100)+'% interest)</option>';
+  h+='</select></div>';
+  h+='<div class="fg"><label class="fl">Date Given *</label><input class="fi" type="date" id="il_date" value="'+(loan?loan.dateGiven:td_())+'" onchange="ilCalc()"></div>';
+  h+='</div>';
+  h+='<div style="background:rgba(41,128,185,.08);border:1.5px solid var(--in);border-radius:10px;padding:14px;margin-bottom:14px" id="il_summary">';
+  h+='<div style="font-size:12px;color:var(--mu)">Fill in amount and term to see calculation</div>';
+  h+='</div>';
+  h+='<div class="fg"><label class="fl">Notes</label><input class="fi" id="il_notes" value="'+esc(loan?loan.notes:'')+'"></div>';
+  h+='<div class="mft"><button class="btn btg" onclick="closeILModal()">Cancel</button><button class="btn btr" style="font-size:15px;padding:12px 24px;font-weight:700" onclick="saveIL()">&#9889; '+(loan?'Update':'Issue')+'  Loan</button></div>';
+  h+='</div></div>';
+  // Append modal to body
+  var existing=document.getElementById('ilmod');if(existing)existing.remove();
+  var div=document.createElement('div');div.innerHTML=h;document.body.appendChild(div.firstChild);
+  ilCalc();
+}
+
+function closeILModal(){var m=document.getElementById('ilmod');if(m)m.remove();}
+
+function ilCalc(){
+  var amt=parseFloat(document.getElementById('il_amt')&&document.getElementById('il_amt').value)||0;
+  var weeks=parseInt(document.getElementById('il_weeks')&&document.getElementById('il_weeks').value)||1;
+  var date=document.getElementById('il_date')&&document.getElementById('il_date').value;
+  var sum=document.getElementById('il_summary');if(!sum)return;
+  if(!amt||!date){sum.innerHTML='<div style="font-size:12px;color:var(--mu)">Fill in amount, term and date to see calculation</div>';return;}
+  var interest=amt*IL_RATES[weeks];
+  var total=amt+interest;
+  var due=ilDueDate(date,weeks);
+  sum.innerHTML='<div style="display:flex;gap:20px;flex-wrap:wrap">'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Amount Given</div><div style="font-size:18px;font-weight:800;color:var(--in)">'+zmw(amt)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Interest ('+( IL_RATES[weeks]*100)+'%)</div><div style="font-size:18px;font-weight:800;color:var(--wn)">'+zmw(interest)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Total Due</div><div style="font-size:18px;font-weight:800;color:var(--r)">'+zmw(total)+'</div></div>'
+    +'<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.4px">Due Date</div><div style="font-size:18px;font-weight:800;color:var(--tx)">'+fmtD(due)+'</div></div>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--mu);margin-top:8px">&#9888; 10% penalty if not cleared within 2 days after due date. Loan cancelled and collateral sold after 1 week past due date.</div>';
+}
+
+function saveIL(){
+  var name=(document.getElementById('il_name').value||'').trim();
+  var phone=(document.getElementById('il_phone').value||'').trim();
+  var branch=document.getElementById('il_branch').value;
+  var location=(document.getElementById('il_location').value||'').trim();
+  var collateral=(document.getElementById('il_collateral').value||'').trim();
+  var amt=parseFloat(document.getElementById('il_amt').value)||0;
+  var weeks=parseInt(document.getElementById('il_weeks').value)||1;
+  var date=document.getElementById('il_date').value;
+  if(!name||!phone||!branch||!location||!collateral||!amt||!date){toast('Please fill all required fields.');return;}
+  if(amt<100){toast('Minimum loan amount is ZMW 100.');return;}
+  if(amt>1000000){toast('Maximum loan amount is ZMW 1,000,000.');return;}
+  var due=ilDueDate(date,weeks);
+  if(_ilEditId){
+    var loan=instantLoans.filter(function(l){return l.id===_ilEditId;})[0];
+    if(loan){loan.clientName=name;loan.clientPhone=phone;loan.nrc=(document.getElementById('il_nrc').value||'').trim();loan.branch=branch;loan.location=location;loan.occupation=(document.getElementById('il_occ').value||'').trim();loan.collateral=collateral;loan.amountGiven=amt;loan.termWeeks=weeks;loan.dateGiven=date;loan.dueDate=due;loan.notes=(document.getElementById('il_notes').value||'').trim();}
+    logAct('act','Updated instant loan for '+name);
+  } else {
+    var newLoan={id:'IL-'+Date.now(),clientName:name,clientPhone:phone,nrc:(document.getElementById('il_nrc').value||'').trim(),branch:branch,location:location,occupation:(document.getElementById('il_occ').value||'').trim(),collateral:collateral,amountGiven:amt,termWeeks:weeks,dateGiven:date,dueDate:due,status:'active',notes:(document.getElementById('il_notes').value||'').trim(),createdBy:cu.display,createdAt:now_(),weeksUsed:null,settledDate:null,settledAmount:null};
+    instantLoans.push(newLoan);
+    logAct('act','Issued instant loan to '+name+' — '+zmw(amt)+' for '+weeks+' week(s)');
+  }
+  _markDirty('meta','');save();closeILModal();toast('Loan saved!');renderInstantLoans(document.getElementById('mainct'));
+}
+
+function ilSettle(id){
+  var loan=instantLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  var totalDue=ilTotalDue(loan);
+  if(!confirm('Mark as FULLY SETTLED?\n\nClient: '+loan.clientName+'\nTotal Due: '+zmw(totalDue)+'\n\nConfirm settlement?'))return;
+  loan.status='cleared';loan.settledDate=td_();loan.settledAmount=totalDue;loan.weeksUsed=loan.termWeeks;
+  logAct('act','Instant loan settled — '+loan.clientName+' — '+zmw(totalDue));
+  _markDirty('meta','');save();toast('Loan marked as settled!');renderInstantLoans(document.getElementById('mainct'));
+}
+
+function ilEarlySettle(id){
+  var loan=instantLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  var today=td_();
+  var days=Math.max(1,Math.floor((new Date(today+'T00:00:00')-new Date(loan.dateGiven+'T00:00:00'))/(1000*60*60*24)));
+  var weeksElapsed=Math.min(loan.termWeeks,Math.max(1,Math.ceil(days/7)));
+  var rate=IL_RATES[weeksElapsed]||IL_RATES[loan.termWeeks];
+  var earlyAmt=Math.round(loan.amountGiven*(1+rate)*100)/100;
+  var msg='EARLY SETTLEMENT\n\nClient: '+loan.clientName+'\nOriginal Term: '+loan.termWeeks+' weeks\nActual weeks elapsed: '+weeksElapsed+' week(s)\nApplicable rate: '+(rate*100)+'%\n\nAmount to pay: '+zmw(earlyAmt)+'\n(Instead of '+zmw(loan.amountGiven*(1+IL_RATES[loan.termWeeks]))+' for full term)\n\nConfirm early settlement?';
+  if(!confirm(msg))return;
+  loan.status='cleared';loan.settledDate=today;loan.settledAmount=earlyAmt;loan.weeksUsed=weeksElapsed;
+  logAct('act','Instant loan early settled — '+loan.clientName+' — '+weeksElapsed+' weeks — '+zmw(earlyAmt));
+  _markDirty('meta','');save();toast('Early settlement recorded! Client pays '+zmw(earlyAmt));renderInstantLoans(document.getElementById('mainct'));
+}
+
+function ilCancel(id){
+  var loan=instantLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  if(!confirm('CANCEL LOAN & SELL COLLATERAL\n\nClient: '+loan.clientName+'\nCollateral: '+loan.collateral+'\n\nThis marks the loan as cancelled (collateral to be sold). Continue?'))return;
+  loan.status='cancelled';loan.cancelledDate=td_();loan.cancelledBy=cu.display;
+  logAct('act','Instant loan CANCELLED — '+loan.clientName+' — collateral: '+loan.collateral);
+  _markDirty('meta','');save();toast('Loan cancelled. Proceed with collateral disposal.');renderInstantLoans(document.getElementById('mainct'));
+}
+
+function ilView(id){
+  var loan=instantLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  var st=ilStatus(loan);
+  var totalDue=ilTotalDue(loan);
+  var rate=IL_RATES[loan.weeksUsed||loan.termWeeks]||IL_RATES[loan.termWeeks];
+  var mc=document.getElementById('mainct');
+  var h='<button class="bk" onclick="renderInstantLoans(document.getElementById(\'mainct\'))">&#8592; Back</button>';
+  h+='<div style="background:linear-gradient(135deg,#1a3a5c,#2980b9);color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:14px">';
+  h+='<div style="font-size:11px;opacity:.7">INSTANT LOAN &mdash; '+esc(loan.id)+'</div>';
+  h+='<div style="font-size:22px;font-weight:800;margin-top:2px">'+esc(loan.clientName)+'</div>';
+  h+='<div style="font-size:12px;opacity:.8;margin-top:4px">'+esc(loan.branch)+' &nbsp;&#183;&nbsp; '+esc(loan.clientPhone||'')+'</div>';
+  h+='</div>';
+  var stLabel=st==='active'?'Active':st==='cleared'?'Cleared ✓':st==='cancelled'?'Cancelled':st==='overdue_penalty'?'Overdue + Penalty':st==='overdue_cancel'?'Cancel Risk':'Overdue';
+  var stColor=st==='cleared'?'var(--ok)':st.indexOf('overdue')>=0||st==='overdue_cancel'?'var(--r)':'var(--in)';
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">Loan Details</span></div><div class="cdb">';
+  h+='<div class="rm"><span class="rml">Status</span><span class="rmv" style="font-weight:700;color:'+stColor+'">'+stLabel+'</span></div>';
+  h+='<div class="rm"><span class="rml">Amount Given</span><span class="rmv" style="font-weight:700;color:var(--in)">'+zmw(loan.amountGiven)+'</span></div>';
+  h+='<div class="rm"><span class="rml">Term</span><span class="rmv">'+loan.termWeeks+' week(s) ('+(rate*100)+'% interest)</span></div>';
+  h+='<div class="rm"><span class="rml">Interest Amount</span><span class="rmv" style="color:var(--wn)">'+zmw(loan.amountGiven*rate)+'</span></div>';
+  h+='<div class="rm"><span class="rml">Total Due</span><span class="rmv" style="font-weight:700;font-size:16px;color:var(--r)">'+zmw(totalDue)+'</span></div>';
+  h+='<div class="rm"><span class="rml">Date Given</span><span class="rmv">'+fmtD(loan.dateGiven)+'</span></div>';
+  h+='<div class="rm"><span class="rml">Due Date</span><span class="rmv" style="color:'+(st.indexOf('overdue')>=0?'var(--r)':'var(--tx)')+'">'+fmtD(loan.dueDate)+'</span></div>';
+  if(loan.settledDate) h+='<div class="rm"><span class="rml">Settled Date</span><span class="rmv" style="color:var(--ok)">'+fmtD(loan.settledDate)+'</span></div>';
+  if(loan.settledAmount) h+='<div class="rm"><span class="rml">Amount Settled</span><span class="rmv" style="color:var(--ok);font-weight:700">'+zmw(loan.settledAmount)+'</span></div>';
+  if(loan.weeksUsed&&loan.weeksUsed<loan.termWeeks) h+='<div class="rm"><span class="rml">Early Settlement</span><span class="rmv" style="color:var(--ok)">Week '+loan.weeksUsed+' of '+loan.termWeeks+' ('+( IL_RATES[loan.weeksUsed]*100)+'% rate applied)</span></div>';
+  h+='</div></div>';
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">Client Details</span></div><div class="cdb">';
+  h+='<div class="rm"><span class="rml">NRC / ID</span><span class="rmv">'+esc(loan.nrc||'—')+'</span></div>';
+  h+='<div class="rm"><span class="rml">Location</span><span class="rmv">'+esc(loan.location||'—')+'</span></div>';
+  h+='<div class="rm"><span class="rml">Occupation</span><span class="rmv">'+esc(loan.occupation||'—')+'</span></div>';
+  h+='<div class="rm"><span class="rml">Collateral</span><span class="rmv" style="font-weight:600;color:var(--wn)">'+esc(loan.collateral||'—')+'</span></div>';
+  if(loan.notes) h+='<div class="rm"><span class="rml">Notes</span><span class="rmv">'+esc(loan.notes)+'</span></div>';
+  h+='<div class="rm"><span class="rml">Issued By</span><span class="rmv">'+esc(loan.createdBy||'')+'</span></div>';
+  h+='<div class="rm"><span class="rml">Issue Date</span><span class="rmv">'+fmtDT(loan.createdAt||'')+'</span></div>';
+  h+='</div></div>';
+  if(st!=='cleared'&&st!=='cancelled'&&(cu.role==='admin'||cu.role==='finance_manager')){
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
+    h+='<button class="btn" style="flex:1;padding:12px;background:var(--ok);color:#fff;border:none;font-weight:700" onclick="ilSettle(\''+loan.id+'\');renderInstantLoans(document.getElementById(\'mainct\'))">&#10003; Full Settlement</button>';
+    h+='<button class="btn" style="flex:1;padding:12px;background:var(--in);color:#fff;border:none;font-weight:700" onclick="ilEarlySettle(\''+loan.id+'\');renderInstantLoans(document.getElementById(\'mainct\'))">&#128197; Early Settlement</button>';
+    h+='<button class="btn" style="flex:1;padding:12px;background:var(--s2);color:var(--tx);border:1px solid var(--bd)" onclick="openILModal(\''+loan.id+'\')">&#9998; Edit</button>';
+    if(st==='overdue_cancel') h+='<button class="btn btr" style="flex:1;padding:12px" onclick="ilCancel(\''+loan.id+'\')">&#10007; Cancel &amp; Sell Collateral</button>';
+    h+='</div>';
+  }
+  mc.innerHTML=h;
+}
+// ===== END INSTANT LOANS MODULE =====
+
+// ===== INVOICE DISCOUNTING MODULE =====
+// 80% of invoice, 5%/month on outstanding, 8.5% service charge, max 3 months
+var _invEditId=null;
+var INV_RATE=0.05, INV_SVC=0.085, INV_ADVANCE=0.80, INV_MAX_MONTHS=3;
+
+function invCalc(amt, months){
+  var svc=Math.round(amt*INV_SVC*100)/100;
+  var disbursed=Math.round(amt*INV_ADVANCE*100)/100; // 80% advance
+  // Month 1: amt * 5% interest
+  // Month 2: month1 balance * 5% + balance
+  // Month 3: month2 balance * 5% + balance
+  var schedule=[];
+  var balance=amt*(1+INV_RATE); // month1 due
+  for(var m=1;m<=months;m++){
+    var due=m===1?Math.round(amt*(1+INV_RATE)*100)/100:Math.round(balance*(1+INV_RATE)*100)/100;
+    var profit=Math.round(due-amt*100)/100;
+    schedule.push({month:m,amountDue:due,expectedProfit:profit});
+    balance=due; // if unpaid, next month compounds on this
+  }
+  return {svc:svc,disbursed:disbursed,schedule:schedule};
+}
+
+function invStatus(loan){
+  if(loan.status==='cleared') return 'cleared';
+  if(loan.status==='cancelled') return 'cancelled';
+  var today=td_();
+  var totalPaid=0;
+  for(var i=0;i<(loan.months||[]).length;i++) totalPaid+=(loan.months[i].amountPaid||0);
+  // Find latest unpaid month that is overdue
+  for(var i=0;i<(loan.months||[]).length;i++){
+    var m=loan.months[i];
+    if(!(m.amountPaid>=m.amountDue-1) && m.dueDate && today>m.dueDate) return 'overdue';
+  }
+  return 'active';
+}
+
+function invBalance(loan){
+  var lastUnpaid=null;
+  for(var i=0;i<(loan.months||[]).length;i++){
+    var m=loan.months[i];
+    if(!(m.amountPaid>=(m.amountDue-1))) lastUnpaid=m;
+  }
+  return lastUnpaid?lastUnpaid.amountDue-(lastUnpaid.amountPaid||0):0;
+}
+
+function renderInvoiceLoans(mc){
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var filterStatus=window._invFilter||'all';
+  var stats={active:0,overdue:0,cleared:0,totalOut:0};
+  for(var i=0;i<invoiceLoans.length;i++){
+    var l=invoiceLoans[i];var st=invStatus(l);
+    if(st==='active')stats.active++;else if(st==='overdue')stats.overdue++;else if(st==='cleared')stats.cleared++;
+    if(st==='active'||st==='overdue')stats.totalOut+=(l.amountGiven||0);
+  }
+  var h='<div style="background:linear-gradient(135deg,#1a1a4e,#2c3e8c);border-radius:14px;padding:18px 22px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h+='<div><div style="font-size:20px;font-weight:800">&#128196; Invoice Discounting</div><div style="font-size:11px;opacity:.75;margin-top:2px">80% advance &mdash; 5%/month &mdash; 8.5% service charge &mdash; Max 3 months</div></div>';
+  if(canManage) h+='<button class="btn" style="background:#fff;color:#1a1a4e;font-weight:700;padding:10px 20px;border-radius:10px;border:none" onclick="openInvModal()">+ New Invoice</button>';
+  h+='</div>';
+  h+='<div class="sg" style="margin-bottom:16px">';
+  h+='<div class="sc c2"><div class="si">&#128196;</div><div class="sl">Active</div><div class="sv">'+stats.active+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#9888;</div><div class="sl">Overdue</div><div class="sv" style="color:#fff">'+stats.overdue+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#10003;</div><div class="sl">Cleared</div><div class="sv">'+stats.cleared+'</div></div>';
+  h+='<div class="sc c1"><div class="si">&#128176;</div><div class="sl">Total Outstanding</div><div class="sv">'+zmw(stats.totalOut)+'</div></div>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  [['all','All'],['active','Active'],['overdue','Overdue'],['cleared','Cleared']].forEach(function(f){
+    var isAct=filterStatus===f[0];
+    h+='<button onclick="window._invFilter=\''+f[0]+'\';renderInvoiceLoans(document.getElementById(\'mainct\'))" style="padding:6px 14px;border-radius:20px;border:1.5px solid '+(isAct?'#2c3e8c':'var(--bd)')+';background:'+(isAct?'#2c3e8c':'#fff')+';color:'+(isAct?'#fff':'var(--tx)')+';font-size:12px;font-weight:600;cursor:pointer">'+f[1]+'</button>';
+  });
+  h+='</div>';
+  var filtered=invoiceLoans.filter(function(l){var st=invStatus(l);return filterStatus==='all'||st===filterStatus;}).sort(function(a,b){return (b.dateGiven||'')>(a.dateGiven||'')?1:-1;});
+  if(!filtered.length){
+    h+='<div class="cd"><div style="padding:40px;text-align:center"><div style="font-size:40px">&#128196;</div><div style="font-weight:600;color:var(--mu);margin-top:10px">No invoice discounting loans</div></div></div>';
+  } else {
+    h+='<div class="tw"><table><thead><tr><th>Company</th><th>Director</th><th>Invoice Amt</th><th>Disbursed (80%)</th><th>Months</th><th>Date Given</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for(var i=0;i<filtered.length;i++){
+      var l=filtered[i];var st=invStatus(l);
+      var stCls=st==='active'?'bgg':st==='overdue'?'bgr':st==='cleared'?'bgb':'bgx';
+      var stLabel=st==='active'?'Active':st==='overdue'?'Overdue':st==='cleared'?'Cleared ✓':'Cancelled';
+      h+='<tr><td><strong>'+esc(l.companyName)+'</strong></td><td style="font-size:12px">'+esc(l.directorName)+'</td>';
+      h+='<td style="font-family:monospace;font-weight:700">'+zmw(l.amountGiven)+'</td>';
+      h+='<td style="font-family:monospace">'+zmw(l.disbursedAmount)+'</td>';
+      h+='<td style="font-size:12px">'+l.termMonths+' mo</td>';
+      h+='<td style="font-size:12px">'+fmtD(l.dateGiven)+'</td>';
+      h+='<td><span class="bg '+stCls+'" style="font-size:9px">'+stLabel+'</span></td>';
+      h+='<td><button class="ab" style="color:#2c3e8c;border-color:#2c3e8c;width:100%;margin-bottom:3px" onclick="invView(\''+l.id+'\')">&#128065; View / Pay</button>'+(canManage&&st!=='cleared'&&st!=='cancelled'?'<button class="ab" style="color:var(--mu);width:100%" onclick="openInvModal(\''+l.id+'\')">&#9998; Edit</button>':'')+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+  mc.innerHTML=h;
+}
+
+function openInvModal(editId){
+  _invEditId=editId||null;
+  var loan=editId?invoiceLoans.filter(function(l){return l.id===editId;})[0]:null;
+  var existing=document.getElementById('invmod');if(existing)existing.remove();
+  var mhtml='<div class="mo op" id="invmod"><div class="md mlg" style="margin-top:10px">';
+  mhtml+='<div class="mtt">&#128196; '+(loan?'Edit':'New')+' Invoice Discounting</div>';
+  mhtml+='<div class="fr3">';
+  mhtml+='<div class="fg"><label class="fl">Company Name *</label><input class="fi" id="inv_company" value="'+esc(loan?loan.companyName:'')+'"></div>';
+  mhtml+='<div class="fg"><label class="fl">Director Name(s) *</label><input class="fi" id="inv_director" value="'+esc(loan?loan.directorName:'')+'"></div>';
+  mhtml+='<div class="fg"><label class="fl">Contact *</label><input class="fi" id="inv_contact" value="'+esc(loan?loan.contact:'')+'"></div>';
+  mhtml+='</div>';
+  mhtml+='<div class="fr"><div class="fg"><label class="fl">Location / Address *</label><input class="fi" id="inv_location" value="'+esc(loan?loan.location:'')+'"></div></div>';
+  mhtml+='<div class="fr3">';
+  mhtml+='<div class="fg"><label class="fl">Invoice Amount (ZMW) *</label><input class="fi" type="number" id="inv_amt" value="'+(loan?loan.amountGiven:'')+'" oninput="invCalcModal()"></div>';
+  mhtml+='<div class="fg"><label class="fl">Term (Months, max 3) *</label><select class="fsel" id="inv_months" onchange="invCalcModal()">';
+  for(var m=1;m<=3;m++) mhtml+='<option value="'+m+'"'+(loan&&loan.termMonths===m?' selected':'')+'>'+m+' Month'+(m>1?'s':'')+'</option>';
+  mhtml+='</select></div>';
+  mhtml+='<div class="fg"><label class="fl">Date Given *</label><input class="fi" type="date" id="inv_date" value="'+(loan?loan.dateGiven:td_())+'" onchange="invCalcModal()"></div>';
+  mhtml+='</div>';
+  mhtml+='<div style="background:rgba(44,62,140,.08);border:1.5px solid #2c3e8c;border-radius:10px;padding:14px;margin-bottom:14px" id="inv_summary"><div style="font-size:12px;color:var(--mu)">Fill in amount and term to see calculation</div></div>';
+  mhtml+='<div class="fg"><label class="fl">Notes</label><input class="fi" id="inv_notes" value="'+esc(loan?loan.notes:'')+'"></div>';
+  mhtml+='<div class="mft"><button class="btn btg" onclick="closeInvModal()">Cancel</button><button class="btn" style="background:#2c3e8c;color:#fff;font-size:15px;padding:12px 24px;font-weight:700;border:none;border-radius:10px" onclick="saveInv()">&#128196; '+(loan?'Update':'Issue')+'</button></div>';
+  mhtml+='</div></div>';
+  var div=document.createElement('div');div.innerHTML=mhtml;document.body.appendChild(div.firstChild);
+  invCalcModal();
+}
+function closeInvModal(){var m=document.getElementById('invmod');if(m)m.remove();}
+function invCalcModal(){
+  var amt=parseFloat(document.getElementById('inv_amt')&&document.getElementById('inv_amt').value)||0;
+  var months=parseInt(document.getElementById('inv_months')&&document.getElementById('inv_months').value)||1;
+  var date=document.getElementById('inv_date')&&document.getElementById('inv_date').value;
+  var sum=document.getElementById('inv_summary');if(!sum)return;
+  if(!amt){sum.innerHTML='<div style="font-size:12px;color:var(--mu)">Fill in amount to see calculation</div>';return;}
+  var calc=invCalc(amt,months);
+  var html='<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Invoice Amount</div><div style="font-size:16px;font-weight:800;color:var(--tx)">'+zmw(amt)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Service Charge (8.5%)</div><div style="font-size:16px;font-weight:800;color:var(--r)">'+zmw(calc.svc)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Disbursed to Client (80%)</div><div style="font-size:16px;font-weight:800;color:var(--in)">'+zmw(calc.disbursed)+'</div></div>';
+  html+='</div><div style="margin-top:10px;font-size:11px;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Monthly Schedule:</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">';
+  for(var m=0;m<calc.schedule.length;m++){
+    var dueD=date?ltMonthDueDate(date,m+1):'—';
+    html+='<div style="background:rgba(44,62,140,.08);border:1px solid rgba(44,62,140,.2);border-radius:8px;padding:8px 12px;text-align:center">';
+    html+='<div style="font-size:10px;color:var(--mu)">Month '+(m+1)+'</div>';
+    html+='<div style="font-size:14px;font-weight:700;color:#2c3e8c">'+zmw(calc.schedule[m].amountDue)+'</div>';
+    html+='<div style="font-size:9px;color:var(--mu)">Due: '+fmtD(dueD)+'</div>';
+    html+='<div style="font-size:9px;color:var(--ok)">Profit: '+zmw(calc.schedule[m].expectedProfit)+'</div>';
+    html+='</div>';
+  }
+  html+='</div>';
+  sum.innerHTML=html;
+}
+function saveInv(){
+  var company=(document.getElementById('inv_company').value||'').trim();
+  var director=(document.getElementById('inv_director').value||'').trim();
+  var contact=(document.getElementById('inv_contact').value||'').trim();
+  var location=(document.getElementById('inv_location').value||'').trim();
+  var amt=parseFloat(document.getElementById('inv_amt').value)||0;
+  var months=parseInt(document.getElementById('inv_months').value)||1;
+  var date=document.getElementById('inv_date').value;
+  if(!company||!director||!contact||!location||!amt||!date){toast('Please fill all required fields.');return;}
+  var calc=invCalc(amt,months);
+  var pmts=[];
+  for(var m=0;m<months;m++){
+    pmts.push({month:m+1,dueDate:ltMonthDueDate(date,m+1),amountDue:calc.schedule[m].amountDue,amountPaid:0,datePaid:null});
+  }
+  if(_invEditId){
+    var loan=invoiceLoans.filter(function(l){return l.id===_invEditId;})[0];
+    if(loan){loan.companyName=company;loan.directorName=director;loan.contact=contact;loan.location=location;loan.amountGiven=amt;loan.termMonths=months;loan.dateGiven=date;loan.serviceCharge=calc.svc;loan.disbursedAmount=calc.disbursed;loan.notes=(document.getElementById('inv_notes').value||'').trim();if(loan.months.length!==months)loan.months=pmts;}
+    logAct('act','Updated invoice loan — '+company);
+  } else {
+    invoiceLoans.push({id:'INV-'+Date.now(),companyName:company,directorName:director,contact:contact,location:location,amountGiven:amt,termMonths:months,dateGiven:date,serviceCharge:calc.svc,disbursedAmount:calc.disbursed,months:pmts,status:'active',notes:(document.getElementById('inv_notes').value||'').trim(),createdBy:cu.display,createdAt:now_()});
+    logAct('act','Invoice loan — '+company+' — '+zmw(amt));
+  }
+  _markDirty('meta','');save();closeInvModal();toast('Invoice loan saved!');renderInvoiceLoans(document.getElementById('mainct'));
+}
+function invView(id){
+  var loan=invoiceLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var st=invStatus(loan);
+  var mc=document.getElementById('mainct');
+  var h='<button class="bk" onclick="renderInvoiceLoans(document.getElementById(\'mainct\'))">&#8592; Back</button>';
+  h+='<div style="background:linear-gradient(135deg,#1a1a4e,#2c3e8c);color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:14px">';
+  h+='<div style="font-size:11px;opacity:.7">INVOICE DISCOUNTING &mdash; '+esc(loan.id)+'</div>';
+  h+='<div style="font-size:22px;font-weight:800;margin-top:2px">'+esc(loan.companyName)+'</div>';
+  h+='<div style="font-size:12px;opacity:.8;margin-top:4px">'+esc(loan.directorName)+' &nbsp;&#183;&nbsp; '+esc(loan.contact)+'</div>';
+  h+='</div>';
+  h+='<div class="sg" style="margin-bottom:14px">';
+  h+='<div class="sc c1"><div class="si">&#128196;</div><div class="sl">Invoice Amount</div><div class="sv">'+zmw(loan.amountGiven)+'</div></div>';
+  h+='<div class="sc c2"><div class="si">&#128199;</div><div class="sl">Disbursed (80%)</div><div class="sv">'+zmw(loan.disbursedAmount)+'</div><div class="ss">Svc: '+zmw(loan.serviceCharge)+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#128197;</div><div class="sl">Term</div><div class="sv">'+loan.termMonths+' mo</div><div class="ss">5%/month rate</div></div>';
+  h+='</div>';
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128197; Monthly Schedule</span></div>';
+  h+='<div class="tw"><table><thead><tr><th>Month</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Date Paid</th><th>Balance</th><th>Status</th>'+(canManage?'<th>Action</th>':'')+'</tr></thead><tbody>';
+  var today=td_();
+  for(var i=0;i<(loan.months||[]).length;i++){
+    var p=loan.months[i];
+    var pSt=p.amountPaid>=(p.amountDue-1)?'paid':today>p.dueDate?'overdue':'pending';
+    var pCls=pSt==='paid'?'bgg':pSt==='overdue'?'bgr':'bgx';
+    var bal=Math.max(0,p.amountDue-(p.amountPaid||0));
+    h+='<tr><td style="font-weight:700">Month '+p.month+'</td>';
+    h+='<td style="font-size:12px;color:'+(pSt==='overdue'?'var(--r)':'var(--tx)')+'">'+fmtD(p.dueDate)+'</td>';
+    h+='<td style="font-family:monospace">'+zmw(p.amountDue)+'</td>';
+    h+='<td style="font-family:monospace;color:var(--ok)">'+zmw(p.amountPaid||0)+'</td>';
+    h+='<td style="font-size:12px">'+(p.datePaid?fmtD(p.datePaid):'—')+'</td>';
+    h+='<td style="font-family:monospace;font-weight:700;color:'+(bal>0?'var(--r)':'var(--ok)')+'">'+zmw(bal)+'</td>';
+    h+='<td><span class="bg '+pCls+'" style="font-size:9px">'+(pSt==='paid'?'Paid ✓':pSt==='overdue'?'Overdue':'Pending')+'</span></td>';
+    if(canManage) h+='<td>'+(pSt!=='paid'?'<button class="ab" style="color:var(--ok);border-color:var(--ok)" onclick="invRecordPay(\''+id+'\','+i+')">Record</button>':'<button class="ab" style="color:var(--mu)" onclick="invUndoPay(\''+id+'\','+i+')">Undo</button>')+'</td>';
+    h+='</tr>';
+  }
+  h+='</tbody></table></div></div>';
+  mc.innerHTML=h;
+}
+function invRecordPay(loanId,mi){
+  var loan=invoiceLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;
+  var p=loan.months[mi];var def=Math.max(0,p.amountDue-(p.amountPaid||0));
+  var amtStr=prompt('Record payment — Month '+p.month+'\nAmount Due: '+zmw(p.amountDue)+'\nBalance: '+zmw(def)+'\n\nEnter amount paid:',def);
+  if(amtStr===null)return;var amt=parseFloat(amtStr)||0;if(amt<=0){toast('Enter valid amount.');return;}
+  p.amountPaid=(p.amountPaid||0)+amt;p.datePaid=td_();
+  var allPaid=true;for(var i=0;i<loan.months.length;i++){if(loan.months[i].amountPaid<loan.months[i].amountDue-1){allPaid=false;break;}}
+  if(allPaid) loan.status='cleared';
+  logAct('act','Invoice payment — '+loan.companyName+' Month '+p.month+' — '+zmw(amt));
+  _markDirty('meta','');save();toast('Payment recorded!');invView(loanId);
+}
+function invUndoPay(loanId,mi){
+  var loan=invoiceLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;
+  var p=loan.months[mi];if(!confirm('Undo payment for Month '+p.month+'?'))return;
+  p.amountPaid=0;p.datePaid=null;if(loan.status==='cleared')loan.status='active';
+  _markDirty('meta','');save();toast('Payment undone.');invView(loanId);
+}
+// ===== END INVOICE DISCOUNTING =====
+
+// ===== ORDER FINANCING MODULE =====
+// 70% advance, 5%/month on outstanding, 8.5% service charge, max 3 months
+var _ordEditId=null;
+var ORD_RATE=0.05, ORD_SVC=0.085, ORD_ADVANCE=0.70, ORD_MAX_MONTHS=3;
+
+function ordCalc(amt,months){
+  var svc=Math.round(amt*ORD_SVC*100)/100;
+  var disbursed=Math.round(amt*ORD_ADVANCE*100)/100;
+  var schedule=[];
+  var balance=amt*(1+ORD_RATE);
+  for(var m=1;m<=months;m++){
+    var due=m===1?Math.round(amt*(1+ORD_RATE)*100)/100:Math.round(balance*(1+ORD_RATE)*100)/100;
+    schedule.push({month:m,amountDue:due});
+    balance=due;
+  }
+  return {svc:svc,disbursed:disbursed,schedule:schedule};
+}
+
+function renderOrderLoans(mc){
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var filterStatus=window._ordFilter||'all';
+  var stats={active:0,overdue:0,cleared:0,totalOut:0};
+  for(var i=0;i<orderLoans.length;i++){var l=orderLoans[i];var st=invStatus({status:l.status,months:l.months});if(st==='active')stats.active++;else if(st==='overdue')stats.overdue++;else if(st==='cleared')stats.cleared++;if(st==='active'||st==='overdue')stats.totalOut+=(l.amountGiven||0);}
+  var h='<div style="background:linear-gradient(135deg,#4a1a5c,#8e44ad);border-radius:14px;padding:18px 22px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h+='<div><div style="font-size:20px;font-weight:800">&#128230; Order Financing</div><div style="font-size:11px;opacity:.75;margin-top:2px">70% advance &mdash; 5%/month &mdash; 8.5% service charge &mdash; Max 3 months</div></div>';
+  if(canManage) h+='<button class="btn" style="background:#fff;color:#4a1a5c;font-weight:700;padding:10px 20px;border-radius:10px;border:none" onclick="openOrdModal()">+ New Order</button>';
+  h+='</div>';
+  h+='<div class="sg" style="margin-bottom:16px"><div class="sc c2"><div class="si">&#128230;</div><div class="sl">Active</div><div class="sv">'+stats.active+'</div></div><div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#9888;</div><div class="sl">Overdue</div><div class="sv" style="color:#fff">'+stats.overdue+'</div></div><div class="sc c4"><div class="si">&#10003;</div><div class="sl">Cleared</div><div class="sv">'+stats.cleared+'</div></div><div class="sc c1"><div class="si">&#128176;</div><div class="sl">Total Outstanding</div><div class="sv">'+zmw(stats.totalOut)+'</div></div></div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  [['all','All'],['active','Active'],['overdue','Overdue'],['cleared','Cleared']].forEach(function(f){var isAct=filterStatus===f[0];h+='<button onclick="window._ordFilter=\''+f[0]+'\';renderOrderLoans(document.getElementById(\'mainct\'))" style="padding:6px 14px;border-radius:20px;border:1.5px solid '+(isAct?'#8e44ad':'var(--bd)')+';background:'+(isAct?'#8e44ad':'#fff')+';color:'+(isAct?'#fff':'var(--tx)')+';font-size:12px;font-weight:600;cursor:pointer">'+f[1]+'</button>';});
+  h+='</div>';
+  var filtered=orderLoans.filter(function(l){var st=invStatus({status:l.status,months:l.months});return filterStatus==='all'||st===filterStatus;}).sort(function(a,b){return (b.dateGiven||'')>(a.dateGiven||'')?1:-1;});
+  if(!filtered.length){h+='<div class="cd"><div style="padding:40px;text-align:center"><div style="font-size:40px">&#128230;</div><div style="font-weight:600;color:var(--mu);margin-top:10px">No order financing loans</div></div></div>';}
+  else{
+    h+='<div class="tw"><table><thead><tr><th>Company</th><th>Contact</th><th>Order Amount</th><th>Disbursed (70%)</th><th>Months</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for(var i=0;i<filtered.length;i++){
+      var l=filtered[i];var st=invStatus({status:l.status,months:l.months});
+      var stCls=st==='active'?'bgg':st==='overdue'?'bgr':st==='cleared'?'bgb':'bgx';
+      var stLabel=st==='active'?'Active':st==='overdue'?'Overdue':st==='cleared'?'Cleared ✓':'Cancelled';
+      h+='<tr><td><strong>'+esc(l.companyName)+'</strong></td><td style="font-size:12px">'+esc(l.contact)+'</td><td style="font-family:monospace;font-weight:700">'+zmw(l.amountGiven)+'</td><td style="font-family:monospace">'+zmw(l.disbursedAmount)+'</td><td>'+l.termMonths+' mo</td><td style="font-size:12px">'+fmtD(l.dateGiven)+'</td><td><span class="bg '+stCls+'" style="font-size:9px">'+stLabel+'</span></td><td><button class="ab" style="color:#8e44ad;border-color:#8e44ad;width:100%;margin-bottom:3px" onclick="ordView(\''+l.id+'\')">&#128065; View / Pay</button>'+(canManage&&st!=='cleared'&&st!=='cancelled'?'<button class="ab" style="color:var(--mu);width:100%" onclick="openOrdModal(\''+l.id+'\')">&#9998; Edit</button>':'')+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+  mc.innerHTML=h;
+}
+function openOrdModal(editId){
+  _ordEditId=editId||null;var loan=editId?orderLoans.filter(function(l){return l.id===editId;})[0]:null;
+  var existing=document.getElementById('ordmod');if(existing)existing.remove();
+  var mhtml='<div class="mo op" id="ordmod"><div class="md mlg" style="margin-top:10px"><div class="mtt">&#128230; '+(loan?'Edit':'New')+' Order Financing</div>';
+  mhtml+='<div class="fr3"><div class="fg"><label class="fl">Company Name *</label><input class="fi" id="ord_company" value="'+esc(loan?loan.companyName:'')+'"></div><div class="fg"><label class="fl">Contact *</label><input class="fi" id="ord_contact" value="'+esc(loan?loan.contact:'')+'"></div><div class="fg"><label class="fl">Location *</label><input class="fi" id="ord_location" value="'+esc(loan?loan.location:'')+'"></div></div>';
+  mhtml+='<div class="fr3"><div class="fg"><label class="fl">Order Amount (ZMW) *</label><input class="fi" type="number" id="ord_amt" value="'+(loan?loan.amountGiven:'')+'" oninput="ordCalcModal()"></div><div class="fg"><label class="fl">Term (Months, max 3) *</label><select class="fsel" id="ord_months" onchange="ordCalcModal()">';
+  for(var m=1;m<=3;m++) mhtml+='<option value="'+m+'"'+(loan&&loan.termMonths===m?' selected':'')+'>'+m+' Month'+(m>1?'s':'')+'</option>';
+  mhtml+='</select></div><div class="fg"><label class="fl">Date Given *</label><input class="fi" type="date" id="ord_date" value="'+(loan?loan.dateGiven:td_())+'" onchange="ordCalcModal()"></div></div>';
+  mhtml+='<div style="background:rgba(142,68,173,.08);border:1.5px solid #8e44ad;border-radius:10px;padding:14px;margin-bottom:14px" id="ord_summary"><div style="font-size:12px;color:var(--mu)">Fill in amount to see calculation</div></div>';
+  mhtml+='<div class="fg"><label class="fl">Notes</label><input class="fi" id="ord_notes" value="'+esc(loan?loan.notes:'')+'"></div>';
+  mhtml+='<div class="mft"><button class="btn btg" onclick="closeOrdModal()">Cancel</button><button class="btn" style="background:#8e44ad;color:#fff;font-size:15px;padding:12px 24px;font-weight:700;border:none;border-radius:10px" onclick="saveOrd()">&#128230; '+(loan?'Update':'Issue')+'</button></div></div></div>';
+  var div=document.createElement('div');div.innerHTML=mhtml;document.body.appendChild(div.firstChild);ordCalcModal();
+}
+function closeOrdModal(){var m=document.getElementById('ordmod');if(m)m.remove();}
+function ordCalcModal(){
+  var amt=parseFloat(document.getElementById('ord_amt')&&document.getElementById('ord_amt').value)||0;
+  var months=parseInt(document.getElementById('ord_months')&&document.getElementById('ord_months').value)||1;
+  var date=document.getElementById('ord_date')&&document.getElementById('ord_date').value;
+  var sum=document.getElementById('ord_summary');if(!sum)return;
+  if(!amt){sum.innerHTML='<div style="font-size:12px;color:var(--mu)">Fill in amount to see calculation</div>';return;}
+  var calc=ordCalc(amt,months);
+  var html='<div style="display:flex;gap:14px;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Order Amount</div><div style="font-size:16px;font-weight:800">'+zmw(amt)+'</div></div><div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Service Charge (8.5%)</div><div style="font-size:16px;font-weight:800;color:var(--r)">'+zmw(calc.svc)+'</div></div><div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Disbursed (70%)</div><div style="font-size:16px;font-weight:800;color:#8e44ad">'+zmw(calc.disbursed)+'</div></div></div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">';
+  for(var m=0;m<calc.schedule.length;m++){var dd=date?ltMonthDueDate(date,m+1):'—';html+='<div style="background:rgba(142,68,173,.08);border:1px solid rgba(142,68,173,.2);border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:10px;color:var(--mu)">Month '+(m+1)+'</div><div style="font-size:14px;font-weight:700;color:#8e44ad">'+zmw(calc.schedule[m].amountDue)+'</div><div style="font-size:9px;color:var(--mu)">Due: '+fmtD(dd)+'</div></div>';}
+  html+='</div>';sum.innerHTML=html;
+}
+function saveOrd(){
+  var company=(document.getElementById('ord_company').value||'').trim();var contact=(document.getElementById('ord_contact').value||'').trim();var location=(document.getElementById('ord_location').value||'').trim();
+  var amt=parseFloat(document.getElementById('ord_amt').value)||0;var months=parseInt(document.getElementById('ord_months').value)||1;var date=document.getElementById('ord_date').value;
+  if(!company||!contact||!location||!amt||!date){toast('Please fill all required fields.');return;}
+  var calc=ordCalc(amt,months);
+  var pmts=[];for(var m=0;m<months;m++) pmts.push({month:m+1,dueDate:ltMonthDueDate(date,m+1),amountDue:calc.schedule[m].amountDue,amountPaid:0,datePaid:null});
+  if(_ordEditId){
+    var loan=orderLoans.filter(function(l){return l.id===_ordEditId;})[0];
+    if(loan){loan.companyName=company;loan.contact=contact;loan.location=location;loan.amountGiven=amt;loan.termMonths=months;loan.dateGiven=date;loan.serviceCharge=calc.svc;loan.disbursedAmount=calc.disbursed;loan.notes=(document.getElementById('ord_notes').value||'').trim();if(loan.months.length!==months)loan.months=pmts;}
+    logAct('act','Updated order loan — '+company);
+  } else {
+    orderLoans.push({id:'ORD-'+Date.now(),companyName:company,contact:contact,location:location,amountGiven:amt,termMonths:months,dateGiven:date,serviceCharge:calc.svc,disbursedAmount:calc.disbursed,months:pmts,status:'active',notes:(document.getElementById('ord_notes').value||'').trim(),createdBy:cu.display,createdAt:now_()});
+    logAct('act','Order loan — '+company+' — '+zmw(amt));
+  }
+  _markDirty('meta','');save();closeOrdModal();toast('Order loan saved!');renderOrderLoans(document.getElementById('mainct'));
+}
+function ordView(id){
+  var loan=orderLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var mc=document.getElementById('mainct');
+  var h='<button class="bk" onclick="renderOrderLoans(document.getElementById(\'mainct\'))">&#8592; Back</button>';
+  h+='<div style="background:linear-gradient(135deg,#4a1a5c,#8e44ad);color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:14px"><div style="font-size:11px;opacity:.7">ORDER FINANCING &mdash; '+esc(loan.id)+'</div><div style="font-size:22px;font-weight:800;margin-top:2px">'+esc(loan.companyName)+'</div><div style="font-size:12px;opacity:.8;margin-top:4px">'+esc(loan.contact)+' &nbsp;&#183;&nbsp; '+esc(loan.location)+'</div></div>';
+  h+='<div class="sg" style="margin-bottom:14px"><div class="sc c1"><div class="si">&#128230;</div><div class="sl">Order Amount</div><div class="sv">'+zmw(loan.amountGiven)+'</div></div><div class="sc c2"><div class="si">&#128199;</div><div class="sl">Disbursed (70%)</div><div class="sv">'+zmw(loan.disbursedAmount)+'</div><div class="ss">Svc: '+zmw(loan.serviceCharge)+'</div></div><div class="sc c4"><div class="si">&#128197;</div><div class="sl">Term</div><div class="sv">'+loan.termMonths+' mo</div></div></div>';
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128197; Monthly Schedule</span></div><div class="tw"><table><thead><tr><th>Month</th><th>Due Date</th><th>Amount Due</th><th>Paid</th><th>Balance</th><th>Status</th>'+(canManage?'<th>Action</th>':'')+'</tr></thead><tbody>';
+  var today=td_();
+  for(var i=0;i<(loan.months||[]).length;i++){
+    var p=loan.months[i];var pSt=p.amountPaid>=(p.amountDue-1)?'paid':today>p.dueDate?'overdue':'pending';var bal=Math.max(0,p.amountDue-(p.amountPaid||0));
+    h+='<tr><td style="font-weight:700">Month '+p.month+'</td><td style="font-size:12px">'+fmtD(p.dueDate)+'</td><td style="font-family:monospace">'+zmw(p.amountDue)+'</td><td style="font-family:monospace;color:var(--ok)">'+zmw(p.amountPaid||0)+'</td><td style="font-family:monospace;color:'+(bal>0?'var(--r)':'var(--ok)')+'">'+zmw(bal)+'</td><td><span class="bg '+(pSt==='paid'?'bgg':pSt==='overdue'?'bgr':'bgx')+'" style="font-size:9px">'+(pSt==='paid'?'Paid ✓':pSt==='overdue'?'Overdue':'Pending')+'</span></td>';
+    if(canManage) h+='<td>'+(pSt!=='paid'?'<button class="ab" style="color:var(--ok);border-color:var(--ok)" onclick="ordRecordPay(\''+id+'\','+i+')">Record</button>':'<button class="ab" style="color:var(--mu)" onclick="ordUndoPay(\''+id+'\','+i+')">Undo</button>')+'</td>';
+    h+='</tr>';
+  }
+  h+='</tbody></table></div></div>';mc.innerHTML=h;
+}
+function ordRecordPay(loanId,mi){var loan=orderLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;var p=loan.months[mi];var def=Math.max(0,p.amountDue-(p.amountPaid||0));var amtStr=prompt('Record payment — Month '+p.month+'\nBalance: '+zmw(def),def);if(amtStr===null)return;var amt=parseFloat(amtStr)||0;if(amt<=0){toast('Enter valid amount.');return;}p.amountPaid=(p.amountPaid||0)+amt;p.datePaid=td_();var allPaid=true;for(var i=0;i<loan.months.length;i++){if(loan.months[i].amountPaid<loan.months[i].amountDue-1){allPaid=false;break;}}if(allPaid)loan.status='cleared';logAct('act','Order payment — '+loan.companyName+' Month '+p.month+' — '+zmw(amt));_markDirty('meta','');save();toast('Payment recorded!');ordView(loanId);}
+function ordUndoPay(loanId,mi){var loan=orderLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;var p=loan.months[mi];if(!confirm('Undo payment for Month '+p.month+'?'))return;p.amountPaid=0;p.datePaid=null;if(loan.status==='cleared')loan.status='active';_markDirty('meta','');save();toast('Payment undone.');ordView(loanId);}
+// ===== END ORDER FINANCING =====
+
+// ===== SALARY ADVANCE MODULE =====
+// Private companies only, MOU required, 13%/month, 6% service charge, 3% commission
+var _salEditId=null;
+var SAL_RATE=0.13, SAL_SVC=0.06, SAL_COMMISSION=0.03;
+
+function salCalc(amt,months){
+  var svc=Math.round(amt*SAL_SVC*100)/100;
+  var disbursed=Math.round((amt-svc)*100)/100;
+  var totalInterest=Math.round(amt*SAL_RATE*months*100)/100;
+  var totalDue=Math.round((amt+totalInterest)*100)/100;
+  var monthly=Math.round(totalDue/months*100)/100;
+  var commission=Math.round(totalInterest*SAL_COMMISSION*100)/100;
+  return {svc:svc,disbursed:disbursed,totalInterest:totalInterest,totalDue:totalDue,monthly:monthly,commission:commission};
+}
+
+function renderSalaryLoans(mc){
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var filterStatus=window._salFilter||'all';
+  var stats={active:0,overdue:0,cleared:0,totalOut:0};
+  for(var i=0;i<salaryLoans.length;i++){var l=salaryLoans[i];var st=ltStatus(l);if(st==='active')stats.active++;else if(st==='overdue')stats.overdue++;else if(st==='cleared')stats.cleared++;if(st==='active'||st==='overdue')stats.totalOut+=(l.amountGiven||0);}
+  var h='<div style="background:linear-gradient(135deg,#5c3d1a,#d4820a);border-radius:14px;padding:18px 22px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h+='<div><div style="font-size:20px;font-weight:800">&#128100; Salary Advance</div><div style="font-size:11px;opacity:.75;margin-top:2px">Private companies only &mdash; MOU required &mdash; 13%/month &mdash; 6% service charge</div></div>';
+  if(canManage) h+='<button class="btn" style="background:#fff;color:#5c3d1a;font-weight:700;padding:10px 20px;border-radius:10px;border:none" onclick="openSalModal()">+ New Salary Advance</button>';
+  h+='</div>';
+  h+='<div class="sg" style="margin-bottom:16px"><div class="sc c3"><div class="si">&#128100;</div><div class="sl">Active</div><div class="sv">'+stats.active+'</div></div><div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#9888;</div><div class="sl">Overdue</div><div class="sv" style="color:#fff">'+stats.overdue+'</div></div><div class="sc c4"><div class="si">&#10003;</div><div class="sl">Cleared</div><div class="sv">'+stats.cleared+'</div></div><div class="sc c1"><div class="si">&#128176;</div><div class="sl">Total Outstanding</div><div class="sv">'+zmw(stats.totalOut)+'</div></div></div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  [['all','All'],['active','Active'],['overdue','Overdue'],['cleared','Cleared']].forEach(function(f){var isAct=filterStatus===f[0];h+='<button onclick="window._salFilter=\''+f[0]+'\';renderSalaryLoans(document.getElementById(\'mainct\'))" style="padding:6px 14px;border-radius:20px;border:1.5px solid '+(isAct?'#d4820a':'var(--bd)')+';background:'+(isAct?'#d4820a':'#fff')+';color:'+(isAct?'#fff':'var(--tx)')+';font-size:12px;font-weight:600;cursor:pointer">'+f[1]+'</button>';});
+  h+='</div>';
+  var filtered=salaryLoans.filter(function(l){var st=ltStatus(l);return filterStatus==='all'||st===filterStatus;}).sort(function(a,b){return (b.dateGiven||'')>(a.dateGiven||'')?1:-1;});
+  if(!filtered.length){h+='<div class="cd"><div style="padding:40px;text-align:center"><div style="font-size:40px">&#128100;</div><div style="font-weight:600;color:var(--mu);margin-top:10px">No salary advances</div><div style="font-size:12px;color:var(--mu);margin-top:4px">Private companies only. MOU must be signed before issuing.</div></div></div>';}
+  else{
+    h+='<div class="tw"><table><thead><tr><th>Institution</th><th>Employee</th><th>Amount Given</th><th>Disbursed</th><th>Monthly</th><th>Paid</th><th>Balance</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for(var i=0;i<filtered.length;i++){
+      var l=filtered[i];var st=ltStatus(l);var stCls=st==='active'?'bgg':st==='overdue'?'bgr':st==='cleared'?'bgb':'bgx';var stLabel=st==='active'?'Active':st==='overdue'?'Overdue':st==='cleared'?'Cleared ✓':'Cancelled';
+      var paid=ltTotalPaid(l);var bal=ltBalance(l);
+      h+='<tr><td><strong>'+esc(l.institution)+'</strong><div style="font-size:9px;color:'+(l.mouSigned?'var(--ok)':'var(--r)')+'">'+(l.mouSigned?'MOU ✓':'MOU PENDING')+'</div></td><td>'+esc(l.employeeName)+'<div style="font-size:10px;color:var(--mu)">'+esc(l.contact||'')+'</div></td><td style="font-family:monospace;font-weight:700">'+zmw(l.amountGiven)+'</td><td style="font-family:monospace">'+zmw(l.disbursedAmount)+'</td><td style="font-family:monospace">'+zmw(l.monthlyPayment)+'</td><td style="font-family:monospace;color:var(--ok)">'+zmw(paid)+'</td><td style="font-family:monospace;font-weight:700;color:'+(bal>0?'var(--r)':'var(--ok)')+'">'+zmw(bal)+'</td><td style="font-size:12px">'+fmtD(l.dateGiven)+'</td><td><span class="bg '+stCls+'" style="font-size:9px">'+stLabel+'</span></td>';
+      h+='<td><button class="ab" style="color:#d4820a;border-color:#d4820a;width:100%;margin-bottom:3px" onclick="salView(\''+l.id+'\')">&#128065; View / Pay</button>'+(canManage&&st!=='cleared'&&st!=='cancelled'?'<button class="ab" style="color:var(--mu);width:100%" onclick="openSalModal(\''+l.id+'\')">&#9998; Edit</button>':'')+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+  mc.innerHTML=h;
+}
+function openSalModal(editId){
+  _salEditId=editId||null;var loan=editId?salaryLoans.filter(function(l){return l.id===editId;})[0]:null;
+  var existing=document.getElementById('salmod');if(existing)existing.remove();
+  var mhtml='<div class="mo op" id="salmod"><div class="md mlg" style="margin-top:10px"><div class="mtt">&#128100; '+(loan?'Edit':'New')+' Salary Advance</div>';
+  mhtml+='<div style="background:rgba(212,130,10,.1);border:1.5px solid var(--wn);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--wn)"><strong>&#9888; Important:</strong> Only for private company employees. MOU must be signed with the institution before disbursement.</div>';
+  mhtml+='<div class="fr3"><div class="fg"><label class="fl">Institution (Company) *</label><input class="fi" id="sal_institution" value="'+esc(loan?loan.institution:'')+'"></div><div class="fg"><label class="fl">Employee Name *</label><input class="fi" id="sal_employee" value="'+esc(loan?loan.employeeName:'')+'"></div><div class="fg"><label class="fl">Contact *</label><input class="fi" id="sal_contact" value="'+esc(loan?loan.contact:'')+'"></div></div>';
+  mhtml+='<div class="fr3"><div class="fg"><label class="fl">Location *</label><input class="fi" id="sal_location" value="'+esc(loan?loan.location:'')+'"></div><div class="fg"><label class="fl">MOU Signed?</label><select class="fsel" id="sal_mou"><option value="no"'+(loan&&!loan.mouSigned?' selected':(!loan?' selected':''))+'>No (Pending)</option><option value="yes"'+(loan&&loan.mouSigned?' selected':'')+'>Yes ✓</option></select></div><div class="fg"><label class="fl">Date Given *</label><input class="fi" type="date" id="sal_date" value="'+(loan?loan.dateGiven:td_())+'" onchange="salCalcModal()"></div></div>';
+  mhtml+='<div class="fr3"><div class="fg"><label class="fl">Amount Given (ZMW) *</label><input class="fi" type="number" id="sal_amt" value="'+(loan?loan.amountGiven:'')+'" oninput="salCalcModal()"></div><div class="fg"><label class="fl">Term (Months, max 6) *</label><select class="fsel" id="sal_months" onchange="salCalcModal()">';
+  for(var m=1;m<=6;m++) mhtml+='<option value="'+m+'"'+(loan&&loan.termMonths===m?' selected':'')+'>'+m+' Month'+(m>1?'s':'')+'</option>';
+  mhtml+='</select></div></div>';
+  mhtml+='<div style="background:rgba(212,130,10,.08);border:1.5px solid var(--wn);border-radius:10px;padding:14px;margin-bottom:14px" id="sal_summary"><div style="font-size:12px;color:var(--mu)">Fill in amount and term to see calculation</div></div>';
+  mhtml+='<div class="fg"><label class="fl">Notes</label><input class="fi" id="sal_notes" value="'+esc(loan?loan.notes:'')+'"></div>';
+  mhtml+='<div class="mft"><button class="btn btg" onclick="closeSalModal()">Cancel</button><button class="btn" style="background:#d4820a;color:#fff;font-size:15px;padding:12px 24px;font-weight:700;border:none;border-radius:10px" onclick="saveSal()">&#128100; '+(loan?'Update':'Issue')+'</button></div></div></div>';
+  var div=document.createElement('div');div.innerHTML=mhtml;document.body.appendChild(div.firstChild);salCalcModal();
+}
+function closeSalModal(){var m=document.getElementById('salmod');if(m)m.remove();}
+function salCalcModal(){
+  var amt=parseFloat(document.getElementById('sal_amt')&&document.getElementById('sal_amt').value)||0;
+  var months=parseInt(document.getElementById('sal_months')&&document.getElementById('sal_months').value)||1;
+  var date=document.getElementById('sal_date')&&document.getElementById('sal_date').value;
+  var sum=document.getElementById('sal_summary');if(!sum)return;
+  if(!amt){sum.innerHTML='<div style="font-size:12px;color:var(--mu)">Fill in amount to see calculation</div>';return;}
+  var calc=salCalc(amt,months);
+  var html='<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Amount Given</div><div style="font-size:16px;font-weight:800">'+zmw(amt)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Service Charge (6%)</div><div style="font-size:16px;font-weight:800;color:var(--r)">'+zmw(calc.svc)+' deducted</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Disbursed to Employee</div><div style="font-size:16px;font-weight:800;color:var(--in)">'+zmw(calc.disbursed)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Interest (13%/mo × '+months+')</div><div style="font-size:16px;font-weight:800;color:var(--wn)">'+zmw(calc.totalInterest)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Monthly Deduction</div><div style="font-size:16px;font-weight:800;color:var(--tx)">'+zmw(calc.monthly)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Total Expected</div><div style="font-size:16px;font-weight:800;color:var(--r)">'+zmw(calc.totalDue)+'</div></div>';
+  html+='<div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">3% Commission (Profit)</div><div style="font-size:16px;font-weight:800;color:var(--ok)">'+zmw(calc.commission)+'</div></div>';
+  html+='</div>';
+  if(date){
+    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">';
+    for(var m=1;m<=months;m++){var dd=ltMonthDueDate(date,m);html+='<div style="background:rgba(212,130,10,.08);border:1px solid rgba(212,130,10,.2);border-radius:8px;padding:6px 10px;text-align:center"><div style="font-size:10px;color:var(--mu)">Month '+m+'</div><div style="font-size:13px;font-weight:700;color:#d4820a">'+zmw(calc.monthly)+'</div><div style="font-size:9px;color:var(--mu)">'+fmtD(dd)+'</div></div>';}
+    html+='</div>';
+  }
+  sum.innerHTML=html;
+}
+function saveSal(){
+  var institution=(document.getElementById('sal_institution').value||'').trim();var employee=(document.getElementById('sal_employee').value||'').trim();var contact=(document.getElementById('sal_contact').value||'').trim();var location=(document.getElementById('sal_location').value||'').trim();
+  var amt=parseFloat(document.getElementById('sal_amt').value)||0;var months=parseInt(document.getElementById('sal_months').value)||1;var date=document.getElementById('sal_date').value;var mou=document.getElementById('sal_mou').value==='yes';
+  if(!institution||!employee||!contact||!location||!amt||!date){toast('Please fill all required fields.');return;}
+  var calc=salCalc(amt,months);
+  var pmts=[];for(var m=1;m<=months;m++) pmts.push({month:m,dueDate:ltMonthDueDate(date,m),amountDue:calc.monthly,amountPaid:0,datePaid:null});
+  if(_salEditId){
+    var loan=salaryLoans.filter(function(l){return l.id===_salEditId;})[0];
+    if(loan){loan.institution=institution;loan.employeeName=employee;loan.contact=contact;loan.location=location;loan.mouSigned=mou;loan.amountGiven=amt;loan.termMonths=months;loan.dateGiven=date;loan.serviceCharge=calc.svc;loan.disbursedAmount=calc.disbursed;loan.monthlyPayment=calc.monthly;loan.totalDue=calc.totalDue;loan.totalInterest=calc.totalInterest;loan.commission=calc.commission;loan.notes=(document.getElementById('sal_notes').value||'').trim();if(loan.payments.length!==months)loan.payments=pmts;}
+    logAct('act','Updated salary advance — '+employee+' ('+institution+')');
+  } else {
+    salaryLoans.push({id:'SAL-'+Date.now(),institution:institution,employeeName:employee,contact:contact,location:location,mouSigned:mou,amountGiven:amt,termMonths:months,dateGiven:date,serviceCharge:calc.svc,disbursedAmount:calc.disbursed,monthlyPayment:calc.monthly,totalDue:calc.totalDue,totalInterest:calc.totalInterest,commission:calc.commission,payments:pmts,status:'active',notes:(document.getElementById('sal_notes').value||'').trim(),createdBy:cu.display,createdAt:now_()});
+    logAct('act','Salary advance — '+employee+' ('+institution+') — '+zmw(amt));
+  }
+  _markDirty('meta','');save();closeSalModal();toast('Salary advance saved!');renderSalaryLoans(document.getElementById('mainct'));
+}
+function salView(id){
+  var loan=salaryLoans.filter(function(l){return l.id===id;})[0];if(!loan)return;
+  var canManage=cu&&(cu.role==='admin'||cu.role==='finance_manager');
+  var st=ltStatus(loan);var paid=ltTotalPaid(loan);var bal=ltBalance(loan);
+  var mc=document.getElementById('mainct');
+  var h='<button class="bk" onclick="renderSalaryLoans(document.getElementById(\'mainct\'))">&#8592; Back</button>';
+  h+='<div style="background:linear-gradient(135deg,#5c3d1a,#d4820a);color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:14px"><div style="font-size:11px;opacity:.7">SALARY ADVANCE &mdash; '+esc(loan.id)+'</div><div style="font-size:22px;font-weight:800;margin-top:2px">'+esc(loan.employeeName)+'</div><div style="font-size:12px;opacity:.8;margin-top:4px">'+esc(loan.institution)+' &nbsp;&#183;&nbsp; '+esc(loan.contact)+'</div><div style="font-size:11px;opacity:.75;margin-top:4px">'+(loan.mouSigned?'&#10003; MOU Signed':'&#9888; MOU Pending — Do not disburse until signed')+'</div></div>';
+  h+='<div class="sg" style="margin-bottom:14px"><div class="sc c1"><div class="si">&#128100;</div><div class="sl">Amount Given</div><div class="sv">'+zmw(loan.amountGiven)+'</div></div><div class="sc c2"><div class="si">&#128199;</div><div class="sl">Disbursed</div><div class="sv">'+zmw(loan.disbursedAmount)+'</div><div class="ss">Svc: '+zmw(loan.serviceCharge)+'</div></div><div class="sc c4"><div class="si">&#128197;</div><div class="sl">Monthly</div><div class="sv">'+zmw(loan.monthlyPayment)+'</div></div><div class="sc c3"><div class="si">&#10003;</div><div class="sl">Paid</div><div class="sv" style="color:var(--ok)">'+zmw(paid)+'</div><div class="ss">of '+zmw(loan.totalDue)+'</div></div><div class="sc" style="background:linear-gradient(135deg,'+(bal>0?'#c0392b,#e74c3c':'#1e8449,#27ae60')+')"><div class="si">&#128179;</div><div class="sl">Balance</div><div class="sv" style="color:#fff">'+zmw(bal)+'</div></div><div class="sc" style="background:linear-gradient(135deg,#5c3d1a,#d4820a)"><div class="si">&#128200;</div><div class="sl">Commission (3%)</div><div class="sv" style="color:#fff">'+zmw(loan.commission||0)+'</div></div></div>';
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128197; Monthly Payment Schedule</span></div><div class="tw"><table><thead><tr><th>Month</th><th>Due Date</th><th>Monthly Due</th><th>Paid</th><th>Date Paid</th><th>Status</th>'+(canManage?'<th>Action</th>':'')+'</tr></thead><tbody>';
+  var today=td_();
+  for(var i=0;i<(loan.payments||[]).length;i++){
+    var p=loan.payments[i];var pSt=p.amountPaid>=(p.amountDue-1)?'paid':today>p.dueDate?'overdue':'pending';
+    h+='<tr><td style="font-weight:700">Month '+p.month+'</td><td style="font-size:12px;color:'+(pSt==='overdue'?'var(--r)':'var(--tx)')+'">'+fmtD(p.dueDate)+'</td><td style="font-family:monospace">'+zmw(p.amountDue)+'</td><td style="font-family:monospace;color:var(--ok)">'+zmw(p.amountPaid||0)+'</td><td style="font-size:12px">'+(p.datePaid?fmtD(p.datePaid):'—')+'</td><td><span class="bg '+(pSt==='paid'?'bgg':pSt==='overdue'?'bgr':'bgx')+'" style="font-size:9px">'+(pSt==='paid'?'Paid ✓':pSt==='overdue'?'Overdue':'Pending')+'</span></td>';
+    if(canManage) h+='<td>'+(pSt!=='paid'?'<button class="ab" style="color:var(--ok);border-color:var(--ok)" onclick="salRecordPay(\''+id+'\','+i+')">Record</button>':'<button class="ab" style="color:var(--mu)" onclick="salUndoPay(\''+id+'\','+i+')">Undo</button>')+'</td>';
+    h+='</tr>';
+  }
+  h+='</tbody></table></div></div>';mc.innerHTML=h;
+}
+function salRecordPay(loanId,mi){var loan=salaryLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;var p=loan.payments[mi];var def=Math.max(0,p.amountDue-(p.amountPaid||0));var amtStr=prompt('Record payment — Month '+p.month+'\nBalance: '+zmw(def),def);if(amtStr===null)return;var amt=parseFloat(amtStr)||0;if(amt<=0){toast('Enter valid amount.');return;}p.amountPaid=(p.amountPaid||0)+amt;p.datePaid=td_();var totalPaid=ltTotalPaid(loan);if(totalPaid>=(loan.totalDue-1))loan.status='cleared';logAct('act','Salary payment — '+loan.employeeName+' Month '+p.month+' — '+zmw(amt));_markDirty('meta','');save();toast('Payment recorded!');salView(loanId);}
+function salUndoPay(loanId,mi){var loan=salaryLoans.filter(function(l){return l.id===loanId;})[0];if(!loan)return;var p=loan.payments[mi];if(!confirm('Undo payment for Month '+p.month+'?'))return;p.amountPaid=0;p.datePaid=null;if(loan.status==='cleared')loan.status='active';_markDirty('meta','');save();toast('Payment undone.');salView(loanId);}
+// ===== END SALARY ADVANCE =====
+
+// ===== KITWE REPORTS =====
+function renderKitweReports(mc){
+  var today=td_();
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+  function statBlock(loans, getStatus, getBalance, getTotalDue, getTotalPaid){
+    var active=0,overdue=0,cleared=0,cancelled=0;
+    var totalDisbursed=0,totalDue=0,totalPaid=0,totalBalance=0,totalProfit=0;
+    for(var i=0;i<loans.length;i++){
+      var l=loans[i];
+      var st=getStatus(l);
+      if(st==='active')active++;
+      else if(st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel')overdue++;
+      else if(st==='cleared')cleared++;
+      else cancelled++;
+      totalDisbursed+=(l.disbursedAmount||l.amountGiven||0);
+      totalDue+=getTotalDue(l);
+      totalPaid+=getTotalPaid(l);
+      totalBalance+=getBalance(l);
+      // Profit = interest + service charge earned so far
+      totalProfit+=(l.serviceCharge||0)+(l.totalInterest||0);
+    }
+    return {active:active,overdue:overdue,cleared:cleared,cancelled:cancelled,
+      totalDisbursed:totalDisbursed,totalDue:totalDue,totalPaid:totalPaid,
+      totalBalance:totalBalance,totalProfit:totalProfit,count:loans.length};
+  }
+
+  // ── per-product stats ─────────────────────────────────────────────────────
+  var ilStat = statBlock(instantLoans,
+    ilStatus,
+    function(l){return ilTotalDue(l)-(l.settledAmount||0);},
+    function(l){return ilTotalDue(l);},
+    function(l){return l.settledAmount||0;}
+  );
+
+  var ltStat = statBlock(longTermLoans, ltStatus, ltBalance,
+    function(l){return l.totalDue||0;},
+    function(l){return ltTotalPaid(l);}
+  );
+
+  var invStat = statBlock(invoiceLoans, invStatus, invBalance,
+    function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=l.months[i].amountDue;return t;},
+    function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=(l.months[i].amountPaid||0);return t;}
+  );
+
+  var ordStat = statBlock(orderLoans,
+    function(l){return invStatus({status:l.status,months:l.months});},
+    function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=Math.max(0,l.months[i].amountDue-(l.months[i].amountPaid||0));return t;},
+    function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=l.months[i].amountDue;return t;},
+    function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=(l.months[i].amountPaid||0);return t;}
+  );
+
+  var salStat = statBlock(salaryLoans, ltStatus, ltBalance,
+    function(l){return l.totalDue||0;},
+    function(l){return ltTotalPaid(l);}
+  );
+
+  // Grand totals
+  var allStats=[ilStat,ltStat,invStat,ordStat,salStat];
+  var grand={count:0,active:0,overdue:0,cleared:0,cancelled:0,
+    totalDisbursed:0,totalDue:0,totalPaid:0,totalBalance:0,totalProfit:0};
+  for(var i=0;i<allStats.length;i++){
+    grand.count+=allStats[i].count;grand.active+=allStats[i].active;
+    grand.overdue+=allStats[i].overdue;grand.cleared+=allStats[i].cleared;
+    grand.cancelled+=allStats[i].cancelled;grand.totalDisbursed+=allStats[i].totalDisbursed;
+    grand.totalDue+=allStats[i].totalDue;grand.totalPaid+=allStats[i].totalPaid;
+    grand.totalBalance+=allStats[i].totalBalance;grand.totalProfit+=allStats[i].totalProfit;
+  }
+
+  var h='';
+
+  // Header
+  h+='<div style="background:linear-gradient(135deg,#1a0a0a,#3d1515);border-radius:14px;padding:18px 22px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
+  h+='<div><div style="font-size:20px;font-weight:800">&#128202; Kitwe Head Office — Portfolio Summary</div>';
+  h+='<div style="font-size:11px;opacity:.75;margin-top:2px">All products &mdash; As at '+fmtD(today)+'</div></div>';
+  h+='<button class="btn" style="background:#fff;color:#1a0a0a;font-weight:700;padding:8px 18px;border-radius:10px;border:none" onclick="exportKitweReport()">&#11123; Export CSV</button>';
+  h+='</div>';
+
+  // Grand summary cards
+  h+='<div class="sg" style="margin-bottom:18px">';
+  h+='<div class="sc c1"><div class="si">&#128196;</div><div class="sl">Total Loans</div><div class="sv">'+grand.count+'</div><div class="ss">All products</div></div>';
+  h+='<div class="sc c2"><div class="si">&#9889;</div><div class="sl">Active</div><div class="sv">'+grand.active+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#9888;</div><div class="sl">Overdue</div><div class="sv" style="color:#fff">'+grand.overdue+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#10003;</div><div class="sl">Cleared</div><div class="sv">'+grand.cleared+'</div></div>';
+  h+='<div class="sc c1"><div class="si">&#128199;</div><div class="sl">Total Disbursed</div><div class="sv">'+zmw(grand.totalDisbursed)+'</div></div>';
+  h+='<div class="sc c3"><div class="si">&#128179;</div><div class="sl">Total Collected</div><div class="sv">'+zmw(grand.totalPaid)+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,#c0392b,#e74c3c)"><div class="si">&#128683;</div><div class="sl">Outstanding Balance</div><div class="sv" style="color:#fff">'+zmw(grand.totalBalance)+'</div></div>';
+  h+='<div class="sc" style="background:linear-gradient(135deg,#1a3324,#1e8449)"><div class="si">&#128200;</div><div class="sl">Expected Profit</div><div class="sv" style="color:#fff">'+zmw(grand.totalProfit)+'</div></div>';
+  h+='</div>';
+
+  // Per-product breakdown table
+  h+='<div class="cd" style="margin-bottom:16px"><div class="cdh"><span class="cdt">&#128202; Product Breakdown</span></div>';
+  h+='<div class="tw"><table><thead><tr><th>Product</th><th>Total Loans</th><th>Active</th><th>Overdue</th><th>Cleared</th><th>Total Disbursed</th><th>Total Collected</th><th>Balance Due</th><th>Expected Profit</th></tr></thead><tbody>';
+
+  var products=[
+    {name:'&#9889; Instant Loans',   color:'#2980b9', stat:ilStat},
+    {name:'&#128188; Long Term',      color:'#1e8449', stat:ltStat},
+    {name:'&#128196; Invoice Disc.',  color:'#2c3e8c', stat:invStat},
+    {name:'&#128230; Order Finance',  color:'#8e44ad', stat:ordStat},
+    {name:'&#128100; Salary Advance', color:'#d4820a', stat:salStat}
+  ];
+
+  for(var i=0;i<products.length;i++){
+    var p=products[i];var s=p.stat;
+    h+='<tr>';
+    h+='<td><strong style="color:'+p.color+'">'+p.name+'</strong></td>';
+    h+='<td style="font-weight:700;text-align:center">'+s.count+'</td>';
+    h+='<td style="text-align:center"><span class="bg bgg" style="font-size:10px">'+s.active+'</span></td>';
+    h+='<td style="text-align:center"><span class="bg bgr" style="font-size:10px">'+s.overdue+'</span></td>';
+    h+='<td style="text-align:center"><span class="bg bgb" style="font-size:10px">'+s.cleared+'</span></td>';
+    h+='<td style="font-family:monospace">'+zmw(s.totalDisbursed)+'</td>';
+    h+='<td style="font-family:monospace;color:var(--ok)">'+zmw(s.totalPaid)+'</td>';
+    h+='<td style="font-family:monospace;font-weight:700;color:'+(s.totalBalance>0?'var(--r)':'var(--ok)')+'">'+zmw(s.totalBalance)+'</td>';
+    h+='<td style="font-family:monospace;color:var(--ok)">'+zmw(s.totalProfit)+'</td>';
+    h+='</tr>';
+  }
+
+  // Totals row
+  h+='<tr style="background:var(--s2);font-weight:700">';
+  h+='<td>TOTAL</td><td style="text-align:center">'+grand.count+'</td>';
+  h+='<td style="text-align:center">'+grand.active+'</td>';
+  h+='<td style="text-align:center;color:var(--r)">'+grand.overdue+'</td>';
+  h+='<td style="text-align:center">'+grand.cleared+'</td>';
+  h+='<td style="font-family:monospace">'+zmw(grand.totalDisbursed)+'</td>';
+  h+='<td style="font-family:monospace;color:var(--ok)">'+zmw(grand.totalPaid)+'</td>';
+  h+='<td style="font-family:monospace;color:var(--r)">'+zmw(grand.totalBalance)+'</td>';
+  h+='<td style="font-family:monospace;color:var(--ok)">'+zmw(grand.totalProfit)+'</td>';
+  h+='</tr>';
+  h+='</tbody></table></div></div>';
+
+  // Overdue loans detail
+  var overdueAll=[];
+  function gatherOverdue(loans, getStatus, getBalance, productName){
+    for(var i=0;i<loans.length;i++){
+      var st=getStatus(loans[i]);
+      if(st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel'){
+        overdueAll.push({product:productName, name:loans[i].clientName||loans[i].companyName||loans[i].employeeName, contact:loans[i].clientPhone||loans[i].contact||'', balance:getBalance(loans[i]), id:loans[i].id, status:st});
+      }
+    }
+  }
+  gatherOverdue(instantLoans, ilStatus, function(l){return Math.max(0,ilTotalDue(l)-(l.settledAmount||0));}, 'Instant');
+  gatherOverdue(longTermLoans, ltStatus, ltBalance, 'Long Term');
+  gatherOverdue(invoiceLoans, invStatus, invBalance, 'Invoice');
+  gatherOverdue(orderLoans, function(l){return invStatus({status:l.status,months:l.months});}, function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=Math.max(0,l.months[i].amountDue-(l.months[i].amountPaid||0));return t;}, 'Order');
+  gatherOverdue(salaryLoans, ltStatus, ltBalance, 'Salary');
+
+  if(overdueAll.length){
+    h+='<div class="cd" style="margin-bottom:16px;border-left:4px solid var(--r)"><div class="cdh" style="background:rgba(192,57,43,.05)"><span class="cdt" style="color:var(--r)">&#9888; Overdue Accounts ('+overdueAll.length+')</span></div>';
+    h+='<div class="tw"><table><thead><tr><th>Product</th><th>Client / Company</th><th>Contact</th><th>Balance Due</th><th>Status</th></tr></thead><tbody>';
+    for(var i=0;i<overdueAll.length;i++){
+      var od=overdueAll[i];
+      h+='<tr><td style="font-size:11px;font-weight:600">'+od.product+'</td><td><strong>'+esc(od.name)+'</strong></td><td style="font-size:11px">'+esc(od.contact)+'</td>';
+      h+='<td style="font-family:monospace;font-weight:700;color:var(--r)">'+zmw(od.balance)+'</td>';
+      var slbl=od.status==='overdue_penalty'?'Penalty Applied':od.status==='overdue_cancel'?'Cancel Risk':'Overdue';
+      h+='<td><span class="bg bgr" style="font-size:9px">'+slbl+'</span></td>';
+      h+='</tr>';
+    }
+    h+='</tbody></table></div></div>';
+  }
+
+  // Recent activity across all kitwe products
+  var recentActivity=actLog.filter(function(l){
+    return l.msg&&(l.msg.indexOf('instant loan')>=0||l.msg.indexOf('Instant loan')>=0||
+      l.msg.indexOf('long term')>=0||l.msg.indexOf('Long term')>=0||l.msg.indexOf('LT ')>=0||
+      l.msg.indexOf('Invoice')>=0||l.msg.indexOf('Order')>=0||
+      l.msg.indexOf('Salary')>=0||l.msg.indexOf('salary')>=0||l.msg.indexOf('SAL ')>=0);
+  }).slice(-15).reverse();
+
+  if(recentActivity.length){
+    h+='<div class="cd"><div class="cdh"><span class="cdt">&#128336; Recent Kitwe Activity</span></div><div class="cdb">';
+    for(var i=0;i<recentActivity.length;i++){
+      var l=recentActivity[i];
+      h+='<div class="logrow"><div class="logdot act"></div><div style="flex:1"><div style="font-size:12px;font-weight:500">'+esc(l.msg)+'</div><div style="font-size:10px;color:var(--mu);margin-top:2px">'+esc(l.user)+' &nbsp;&#183;&nbsp; '+fmtDT(l.time)+'</div></div></div>';
+    }
+    h+='</div></div>';
+  }
+
+  mc.innerHTML=h;
+}
+
+function exportKitweReport(){
+  var today=td_();
+  var rows=[['KITWE HEAD OFFICE — PORTFOLIO SUMMARY','','','','','','','',''],
+    ['Generated:',today,'','','','','','',''],
+    ['','','','','','','','',''],
+    ['Product','Total Loans','Active','Overdue','Cleared','Total Disbursed','Total Collected','Balance Due','Expected Profit']];
+
+  function addProductRows(name, loans, getStatus, getBalance, getTotalDue, getTotalPaid){
+    var active=0,overdue=0,cleared=0,disbursed=0,paid=0,balance=0,profit=0;
+    for(var i=0;i<loans.length;i++){
+      var l=loans[i];var st=getStatus(l);
+      if(st==='active')active++;else if(st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel')overdue++;else if(st==='cleared')cleared++;
+      disbursed+=(l.disbursedAmount||l.amountGiven||0);paid+=getTotalPaid(l);balance+=getBalance(l);profit+=(l.serviceCharge||0)+(l.totalInterest||0);
+    }
+    rows.push([name,loans.length,active,overdue,cleared,disbursed,paid,balance,profit]);
+  }
+
+  addProductRows('Instant Loans',instantLoans,ilStatus,function(l){return ilTotalDue(l)-(l.settledAmount||0);},function(l){return ilTotalDue(l);},function(l){return l.settledAmount||0;});
+  addProductRows('Long Term Loans',longTermLoans,ltStatus,ltBalance,function(l){return l.totalDue||0;},function(l){return ltTotalPaid(l);});
+  addProductRows('Invoice Discounting',invoiceLoans,invStatus,invBalance,function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=l.months[i].amountDue;return t;},function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=(l.months[i].amountPaid||0);return t;});
+  addProductRows('Order Financing',orderLoans,function(l){return invStatus({status:l.status,months:l.months});},function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=Math.max(0,l.months[i].amountDue-(l.months[i].amountPaid||0));return t;},function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=l.months[i].amountDue;return t;},function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=(l.months[i].amountPaid||0);return t;});
+  addProductRows('Salary Advance',salaryLoans,ltStatus,ltBalance,function(l){return l.totalDue||0;},function(l){return ltTotalPaid(l);});
+
+  // Overdue detail sheet
+  rows.push(['','','','','','','','','']);
+  rows.push(['OVERDUE ACCOUNTS','','','','','','','','']);
+  rows.push(['Product','Client/Company','Contact','Balance Due','Status','','','','']);
+  function addOverdue(loans,getStatus,getBalance,pname){
+    for(var i=0;i<loans.length;i++){
+      var l=loans[i];var st=getStatus(l);
+      if(st==='overdue'||st==='overdue_penalty'||st==='overdue_cancel'){
+        rows.push([pname,l.clientName||l.companyName||l.employeeName||'',l.clientPhone||l.contact||'',getBalance(l),st,'','','','']);
+      }
+    }
+  }
+  addOverdue(instantLoans,ilStatus,function(l){return Math.max(0,ilTotalDue(l)-(l.settledAmount||0));},'Instant Loans');
+  addOverdue(longTermLoans,ltStatus,ltBalance,'Long Term');
+  addOverdue(invoiceLoans,invStatus,invBalance,'Invoice');
+  addOverdue(orderLoans,function(l){return invStatus({status:l.status,months:l.months});},function(l){var t=0;for(var i=0;i<(l.months||[]).length;i++)t+=Math.max(0,l.months[i].amountDue-(l.months[i].amountPaid||0));return t;},'Order Finance');
+  addOverdue(salaryLoans,ltStatus,ltBalance,'Salary Advance');
+
+  var csv=rows.map(function(r){return r.map(function(v){var s=v===null||v===undefined?'':String(v);if(s.indexOf(',')>=0||s.indexOf('"')>=0)s='"'+s.replace(/"/g,'""')+'"';return s;}).join(',');}).join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='kitwe_portfolio_'+today+'.csv';a.click();URL.revokeObjectURL(a.href);
+  toast('Kitwe portfolio report exported!');
+}
+// ===== END KITWE REPORTS =====
+
 function renderActivity(mc){var h='<div class="cd"><div class="cdh"><span class="cdt">Activity Log</span></div><div class="cdb">';if(!actLog.length){h+='<div class="es" style="padding:28px"><div class="ei">&#128336;</div><div class="et">No activity yet</div></div>';}for(var i=0;i<actLog.length;i++){var l=actLog[i];h+='<div class="logrow"><div class="logdot '+l.type+'"></div><div style="flex:1"><div style="font-size:12px;font-weight:500">'+esc(l.msg)+'</div><div style="font-size:10px;color:var(--mu);margin-top:2px">'+esc(l.user)+' ('+esc(l.username)+') &#183; '+fmtDT(l.time)+'</div></div><span class="bg '+(l.type==='in'?'bgg':l.type==='out'?'bgr':'bgb')+'" style="font-size:8px">'+(l.type==='in'?'Login':l.type==='out'?'Logout':'Action')+'</span></div>';}h+='</div></div>';mc.innerHTML=h;}
 function renderDataManage(mc){
   var sCodes=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'];
@@ -4047,6 +5492,7 @@ function addBranch(){
   else branches.SOUTH.push(name);
   _rebuildBranches();
   logAct('act','Added branch: '+name+' ('+region+')');
+  _markDirty('meta','');
   save();
   toast('Branch '+name+' added! Logins created with password manager123 / officer123 / assist123');
   renderDataManage(document.getElementById('mainct'));
@@ -4065,6 +5511,7 @@ function removeBranch(name){
   branches.SOUTH=branches.SOUTH.filter(function(b){return b!==name;});
   _rebuildBranches();
   logAct('act','Removed branch: '+name);
+  _markDirty('meta','');
   save();
   toast('Branch '+name+' removed.');
   renderDataManage(document.getElementById('mainct'));
@@ -4073,7 +5520,7 @@ function removeBranch(name){
 function deleteSampleData(){if(!confirm('Delete all 10 sample clients and their loans/payments?'))return;var sc=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'],slids=[];for(var i=0;i<loans.length;i++){if(sc.indexOf(loans[i].clientId)>=0)slids.push(loans[i].id);}clients=clients.filter(function(c){return sc.indexOf(c.id)<0;});loans=loans.filter(function(l){return sc.indexOf(l.clientId)<0;});payments=payments.filter(function(p){return slids.indexOf(p.loanId)<0;});logAct('act','Deleted sample data');save();toast('Sample data deleted!');renderDataManage(document.getElementById('mainct'));}
 function clearClients(){if(!confirm('Delete ALL clients and their loans/payments?'))return;clients=[];loans=[];payments=[];logAct('act','Cleared all clients');save();toast('All clients cleared.');renderDataManage(document.getElementById('mainct'));}
 function clearLoans(){if(!confirm('Delete ALL loans and payments?'))return;for(var i=0;i<clients.length;i++)clients[i].collateralLockedDate=null;loans=[];payments=[];logAct('act','Cleared all loans');save();toast('All loans cleared.');renderDataManage(document.getElementById('mainct'));}
-function fullReset(){if(!confirm('FULL RESET &#8212; delete ALL data? This cannot be undone.'))return;if(!confirm('Last warning &#8212; confirm full reset?'))return;clients=[];loans=[];payments=[];applications=[];disbursements=[];actLog=[];cidc=1010;lidc=2010;logAct('act','Full system reset');clearSavedData();toast('System fully reset.');renderDataManage(document.getElementById('mainct'));}
+function fullReset(){if(!confirm('FULL RESET &#8212; delete ALL data? This cannot be undone.'))return;if(!confirm('Last warning &#8212; confirm full reset?'))return;clients=[];loans=[];payments=[];applications=[];disbursements=[];instantLoans=[];longTermLoans=[];invoiceLoans=[];orderLoans=[];salaryLoans=[];actLog=[];cidc=1010;lidc=2010;logAct('act','Full system reset');clearSavedData();toast('System fully reset.');renderDataManage(document.getElementById('mainct'));}
 function initSig(id){var c=document.getElementById(id);if(!c)return;var ctx=c.getContext('2d');ctx.strokeStyle='#1a0a0a';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';var drawing=false,lx=0,ly=0;function getPos(e){var r=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*(c.width/r.width),y:(t.clientY-r.top)*(c.height/r.height)};}c.onmousedown=function(e){drawing=true;var p=getPos(e);lx=p.x;ly=p.y;};c.onmousemove=function(e){if(!drawing)return;var p=getPos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.stroke();lx=p.x;ly=p.y;};c.onmouseup=c.onmouseleave=function(){drawing=false;};c.ontouchstart=function(e){e.preventDefault();drawing=true;var p=getPos(e);lx=p.x;ly=p.y;};c.ontouchmove=function(e){e.preventDefault();if(!drawing)return;var p=getPos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.stroke();lx=p.x;ly=p.y;};c.ontouchend=function(){drawing=false;};}
 function clearSig(id){var c=document.getElementById(id);if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);}
 function sigHasData(c){if(!c)return false;var d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(var i=3;i<d.length;i+=4){if(d[i]>0)return true;}return false;}
@@ -4119,7 +5566,7 @@ function normBranch(raw) {
   return raw; // return as-is if no match
 }
 
-function confirmImport(){var created=0,updated=0;for(var i=0;i<ipend.length;i++){var row=ipend[i],ex=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===row.branch){ex=clients[j];break;}}if(ex){ex.phone=row.phone||ex.phone;ex.colItems=row.colItems||ex.colItems;updated++;}else{clients.push({id:gCid(),code:row.code,name:row.name,nrc:'',phone:row.phone,branch:row.branch,address:'',occupation:'',gname:'',gnrc:'',gphone:'',grel:'',gaddress:'',colType:'Appliances',colValue:'',colItems:row.colItems,colDesc:'',businessPhotos:[],homePhotos:[],guarantorPhotos:[],collateralLockedDate:null,regDate:td_()});created++;}}logAct('act','CSV Import: '+created+' new, '+updated+' updated');save();closeModal('impmod');toast('Done! '+created+' new, '+updated+' updated.');abr='ALL';var bcs=document.querySelectorAll('.bc');for(var xi=0;xi<bcs.length;xi++)bcs[xi].classList.remove('ac');var ab=document.querySelector('.bc');if(ab)ab.classList.add('ac');renderClients(document.getElementById('mainct'),'');}
+function confirmImport(){var created=0,updated=0;for(var i=0;i<ipend.length;i++){var row=ipend[i],ex=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===row.branch){ex=clients[j];break;}}if(ex){ex.phone=row.phone||ex.phone;ex.colItems=row.colItems||ex.colItems;updated++;}else{clients.push({id:gCid(),code:row.code,name:row.name,nrc:'',phone:row.phone,branch:row.branch,address:'',occupation:'',gname:'',gnrc:'',gphone:'',grel:'',gaddress:'',colType:'Appliances',colValue:'',colItems:row.colItems,colDesc:'',businessPhotos:[],homePhotos:[],guarantorPhotos:[],collateralLockedDate:null,regDate:td_()});created++;}}clients.forEach(function(x){_markDirty('clients',x.id);});_markDirty('meta','');logAct('act','CSV Import: '+created+' new, '+updated+' updated');save();closeModal('impmod');toast('Done! '+created+' new, '+updated+' updated.');abr='ALL';var bcs=document.querySelectorAll('.bc');for(var xi=0;xi<bcs.length;xi++)bcs[xi].classList.remove('ac');var ab=document.querySelector('.bc');if(ab)ab.classList.add('ac');renderClients(document.getElementById('mainct'),'');}
 
 function openXlsModal(){
   document.getElementById('xlsprev').style.display='none';
@@ -4131,7 +5578,7 @@ function openXlsModal(){
 function openLimpModal(){document.getElementById('liprev').style.display='none';document.getElementById('libtn').style.display='none';document.getElementById('libg').style.display='none';document.getElementById('limpbatchdate').value='';_fillBranchSelect('libr','',false);document.getElementById('limpmod').classList.add('op');}
 function handleLimpFile(input){parseLimpCSV(input.files[0]);}
 function parseLimpCSV(file){var reader=new FileReader();reader.onload=function(ev){var rows=parseCSVText(ev.target.result),result=[];for(var i=0;i<rows.length;i++){if(i<2)continue;var cols=rows[i];if(!cols[0]||!cols[1])continue;var code=(cols[0]||'').trim(),name=(cols[1]||'').trim(),phone=String(cols[2]||'').trim(),colItems=(cols[3]||'').trim(),amtGiven=parseFloat((cols[4]||'').replace(/[^0-9.]/g,''))||0;if(!name||!amtGiven)continue;var dayPays=[];for(var d=0;d<25;d++){var raw=cols[16+d]?String(cols[16+d]).replace(/[^0-9.]/g,''):'';var v=parseFloat(raw);if(!isNaN(v)&&v>0)dayPays.push(v);}result.push({code:code,name:name,phone:phone,colItems:colItems,amtGiven:amtGiven,amtDue:amtGiven*1.4,daily:amtGiven*1.4/25,dayPays:dayPays});}lipend=result;if(!lipend.length){toast('No data found. Check CSV format.');return;}document.getElementById('licountlabel').textContent=lipend.length+' loans ready';var tbody=document.getElementById('lipbody'),branch=document.getElementById('libr').value||'Nakadoli';tbody.innerHTML='';for(var i=0;i<Math.min(12,lipend.length);i++){var row=lipend[i],ex=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===branch){ex=clients[j];break;}}var exLoan=null;if(ex){for(var j=0;j<loans.length;j++){if(loans[j].clientId===ex.id&&loans[j].status==='Active'){exLoan=loans[j];break;}}}var tr=document.createElement('tr');tr.innerHTML='<td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(row.code)+'</td><td>'+esc(row.name)+(ex?'<span class="bg bgg" style="font-size:8px;margin-left:4px">Existing</span>':'')+'</td><td style="font-family:monospace;font-size:10px">'+zmw(row.amtGiven)+'</td><td style="font-family:monospace;font-size:10px;color:var(--r)">'+zmw(row.amtDue)+'</td><td style="font-family:monospace;font-size:10px">'+zmw(row.daily)+'</td><td>'+row.dayPays.length+'/25</td><td><span class="bg '+(exLoan?'bgo':'bgb')+'" style="font-size:8px">'+(exLoan?'Update':'New')+'</span></td>';tbody.appendChild(tr);}document.getElementById('liprev').style.display='block';document.getElementById('libtn').style.display='';document.getElementById('libg').style.display='block';};reader.readAsText(file);}
-function confirmLoanImport(){var branch=document.getElementById('libr').value||'Nakadoli',batchDate=document.getElementById('limpbatchdate').value||td_();if(!batchDate){toast('Please select the batch start date.');return;}var created=0,updated=0;for(var i=0;i<lipend.length;i++){var row=lipend[i],c=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===branch){c=clients[j];break;}}if(!c){c={id:gCid(),code:row.code,name:row.name,nrc:'',phone:row.phone,branch:branch,address:'',occupation:'',gname:'',gnrc:'',gphone:'',grel:'',gaddress:'',colType:'Appliances',colValue:'',colItems:row.colItems,colDesc:'',businessPhotos:[],homePhotos:[],guarantorPhotos:[],collateralLockedDate:batchDate,regDate:batchDate};clients.push(c);}var loan=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){loan=loans[j];break;}}if(loan){payments=payments.filter(function(p){return p.loanId!==loan.id;});for(var d=0;d<row.dayPays.length;d++){var dd=new Date(batchDate+'T00:00:00');dd.setDate(dd.getDate()+d);payments.push({id:Date.now()+Math.random(),loanId:loan.id,amount:row.dayPays[d],date:dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()),notes:'Imported',recordedBy:'CSV Import'});}loan.amountGiven=row.amtGiven;loan.amountDue=row.amtDue;loan.dailyPayment=row.daily;loan.dateGiven=batchDate;updated++;}else{var nl={id:gLid(),code:row.code,clientId:c.id,amountGiven:row.amtGiven,interest:row.amtGiven*0.4,amountDue:row.amtDue,dailyPayment:row.daily,dateGiven:batchDate,status:'Active',colItems:row.colItems};loans.push(nl);for(var d=0;d<row.dayPays.length;d++){var dd=new Date(batchDate+'T00:00:00');dd.setDate(dd.getDate()+d);payments.push({id:Date.now()+Math.random(),loanId:nl.id,amount:row.dayPays[d],date:dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()),notes:'Imported',recordedBy:'CSV Import'});}c.collateralLockedDate=batchDate;created++;}}logAct('act','Loan CSV: '+created+' new, '+updated+' updated');save();closeModal('limpmod');toast('Done! '+created+' new, '+updated+' updated.');renderLoans(document.getElementById('mainct'),'');}
+function confirmLoanImport(){var branch=document.getElementById('libr').value||'Nakadoli',batchDate=document.getElementById('limpbatchdate').value||td_();if(!batchDate){toast('Please select the batch start date.');return;}var created=0,updated=0;for(var i=0;i<lipend.length;i++){var row=lipend[i],c=null;for(var j=0;j<clients.length;j++){if(clients[j].name.toLowerCase()===row.name.toLowerCase()&&clients[j].branch===branch){c=clients[j];break;}}if(!c){c={id:gCid(),code:row.code,name:row.name,nrc:'',phone:row.phone,branch:branch,address:'',occupation:'',gname:'',gnrc:'',gphone:'',grel:'',gaddress:'',colType:'Appliances',colValue:'',colItems:row.colItems,colDesc:'',businessPhotos:[],homePhotos:[],guarantorPhotos:[],collateralLockedDate:batchDate,regDate:batchDate};clients.push(c);}var loan=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){loan=loans[j];break;}}if(loan){payments=payments.filter(function(p){return p.loanId!==loan.id;});for(var d=0;d<row.dayPays.length;d++){var dd=new Date(batchDate+'T00:00:00');dd.setDate(dd.getDate()+d);payments.push({id:Date.now()+Math.random(),loanId:loan.id,amount:row.dayPays[d],date:dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()),notes:'Imported',recordedBy:'CSV Import'});}loan.amountGiven=row.amtGiven;loan.amountDue=row.amtDue;loan.dailyPayment=row.daily;loan.dateGiven=batchDate;updated++;}else{var nl={id:gLid(),code:row.code,clientId:c.id,amountGiven:row.amtGiven,interest:row.amtGiven*0.4,amountDue:row.amtDue,dailyPayment:row.daily,dateGiven:batchDate,status:'Active',colItems:row.colItems};loans.push(nl);for(var d=0;d<row.dayPays.length;d++){var dd=new Date(batchDate+'T00:00:00');dd.setDate(dd.getDate()+d);payments.push({id:Date.now()+Math.random(),loanId:nl.id,amount:row.dayPays[d],date:dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()),notes:'Imported',recordedBy:'CSV Import'});}c.collateralLockedDate=batchDate;created++;}}clients.forEach(function(x){_markDirty('clients',x.id);});loans.forEach(function(x){_markDirty('loans',x.id);});payments.forEach(function(x){_markDirty('payments',String(x.id));});_markDirty('meta','');logAct('act','Loan CSV: '+created+' new, '+updated+' updated');save();closeModal('limpmod');toast('Done! '+created+' new, '+updated+' updated.');renderLoans(document.getElementById('mainct'),'');}
 
 function openAddClientModal(){
   var m=document.getElementById('addclientmod');
@@ -4171,6 +5618,7 @@ function saveNewClient(){
   };
   clients.push(c);
   logAct('act','Added client: '+name);
+  _markDirty('clients',c.id); _markDirty('meta','');
   save();
   closeModal('addclientmod');
   toast('Client "+name+" added!');
