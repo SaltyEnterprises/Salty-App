@@ -1394,7 +1394,7 @@ function startRealtimeSync() {
       if (d.actLog)        actLog        = d.actLog;
       if (d.cidc)          cidc          = d.cidc;
       if (d.lidc)          lidc          = d.lidc;
-      if (d.USERS)         { for (var _lk in d.USERS) { if (d.USERS.hasOwnProperty(_lk)) USERS[_lk] = d.USERS[_lk]; } }
+      // USERS are defined in code - not loaded from localStorage
       if (d.manualEntries) manualEntries = d.manualEntries;
       if (d.branches && d.branches.NORTH && d.branches.SOUTH) { branches=d.branches; _rebuildBranches(); }
       if (d.instantLoans) instantLoans = d.instantLoans;
@@ -1472,7 +1472,7 @@ function _loadFromFirebase() {
       var m = doc.data();
       if (m.cidc > cidc) cidc = m.cidc;
       if (m.lidc > lidc) lidc = m.lidc;
-      if (m.USERS) { for (var k in m.USERS) { if(m.USERS.hasOwnProperty(k)) USERS[k]=m.USERS[k]; } }
+      // USERS are defined in code - don't overwrite from Firebase to ensure all accounts always exist
       if (m.manualEntries) { for (var k in m.manualEntries) { manualEntries[k]=m.manualEntries[k]; } }
       if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
       if (m.actLog) actLog = m.actLog;
@@ -1577,7 +1577,7 @@ function _startFirebaseListener() {
     var m = doc.data();
     if (m.cidc > cidc) cidc = m.cidc;
     if (m.lidc > lidc) lidc = m.lidc;
-    if (m.USERS) { for (var k in m.USERS) { if(m.USERS.hasOwnProperty(k)) USERS[k]=m.USERS[k]; } }
+      // USERS are defined in code - not overwritten from Firebase
     if (m.manualEntries) { for (var k in m.manualEntries) { if(!manualEntries[k]) manualEntries[k]=m.manualEntries[k]; } }
     if (m.branches && m.branches.NORTH && m.branches.SOUTH) { branches=m.branches; _rebuildBranches(); }
     if (m.instantLoans) instantLoans = m.instantLoans;
@@ -1873,9 +1873,9 @@ function doLogout(){logAct('out','Signed out');cu=null;document.getElementById('
 function makeH(id){return function(){showTab(id);};}
 function buildNav(){
   var r=cu.role,tabs=[];
-  if(r==='admin'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'instantloans',label:'&#9889; Instant Loans'},{id:'longtermloans',label:'&#128188; Long Term'},{id:'invoiceloans',label:'&#128196; Invoice'},{id:'orderloans',label:'&#128230; Order Finance'},{id:'salaryloans',label:'&#128100; Salary Advance'},{id:'kitwereports',label:'&#128202; Kitwe Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  if(r==='admin'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'instantloans',label:'&#9889; Instant Loans'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
   else if(r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
-  else if(r==='finance_manager'){tabs=[{id:'instantloans',label:'&#9889; Instant Loans',b:true},{id:'longtermloans',label:'&#128188; Long Term',b:true},{id:'invoiceloans',label:'&#128196; Invoice',b:true},{id:'orderloans',label:'&#128230; Order Finance',b:true},{id:'salaryloans',label:'&#128100; Salary Advance',b:true},{id:'kitwereports',label:'&#128202; Reports'},{id:'activity',label:'Activity'}];}
+  else if(r==='finance_manager'){tabs=[{id:'instantloans',label:'&#9889; Instant Loans',b:true},{id:'activity',label:'Activity'}];}
   else if(r==='manager'){tabs=[{id:'applications',label:'Applications',b:true}];}
   else if(r==='officer'){tabs=[{id:'myapps',label:'My Submissions',b:true},{id:'newapp',label:'+ Register Client'}];}
   else if(r==='assistant'){tabs=[{id:'disbursements',label:'Disbursements',b:true},{id:'myapps',label:'Approved Clients'}];}
