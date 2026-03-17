@@ -2819,7 +2819,7 @@ function renderLoans(mc,filter){
     var lstats=calcLoanStats(l);
     h+='<td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(l.code||l.id)+'</td>';
     h+='<td><strong style="cursor:pointer;color:var(--r2)" onclick="viewLoan(\''+l.id+'\')">'+(lc?esc(lc.name):'&#8212;')+'</strong></td>';
-    h+='<td><span class="bg bgb" style="font-size:8px">'+esc(l.series||'&#8212;')+'</span></td>';
+    h+='<td><span class="bg bgb" style="font-size:8px">'+(l.series?esc(l.series):'&mdash;')+'</span></td>';
     h+='<td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+(lc?esc(lc.branch):'&#8212;')+'</span></td>';
     h+='<td style="font-family:monospace;font-size:11px">'+zmw(l.amountGiven)+'</td>';
     h+='<td style="font-family:monospace;font-size:11px;color:var(--r2)">'+zmw(l.amountDue)+'</td>';
