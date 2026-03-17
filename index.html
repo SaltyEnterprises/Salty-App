@@ -1374,6 +1374,13 @@ function _saveDoc(collection, id, data) {
 function loadData() { return false; }
 
 function startRealtimeSync() {
+  // If ?clear=1 in URL — wipe localStorage and redirect clean
+  if(window.location.search.indexOf('clear=1')>=0){
+    try { localStorage.clear(); } catch(e){}
+    window.location.href = window.location.pathname;
+    return;
+  }
+
   // 1. Load from localStorage immediately (instant, works offline)
   try {
     var raw = localStorage.getItem('salty_v3');
