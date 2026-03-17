@@ -5520,6 +5520,28 @@ function removeBranch(name){
 function deleteSampleData(){if(!confirm('Delete all 10 sample clients and their loans/payments?'))return;var sc=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'],slids=[];for(var i=0;i<loans.length;i++){if(sc.indexOf(loans[i].clientId)>=0)slids.push(loans[i].id);}clients=clients.filter(function(c){return sc.indexOf(c.id)<0;});loans=loans.filter(function(l){return sc.indexOf(l.clientId)<0;});payments=payments.filter(function(p){return slids.indexOf(p.loanId)<0;});logAct('act','Deleted sample data');save();toast('Sample data deleted!');renderDataManage(document.getElementById('mainct'));}
 function clearClients(){if(!confirm('Delete ALL clients and their loans/payments?'))return;clients=[];loans=[];payments=[];logAct('act','Cleared all clients');save();toast('All clients cleared.');renderDataManage(document.getElementById('mainct'));}
 function clearLoans(){if(!confirm('Delete ALL loans and payments?'))return;for(var i=0;i<clients.length;i++)clients[i].collateralLockedDate=null;loans=[];payments=[];logAct('act','Cleared all loans');save();toast('All loans cleared.');renderDataManage(document.getElementById('mainct'));}
+function clearSavedData(){
+  // Clear localStorage
+  try { localStorage.removeItem('salty_v3'); } catch(e){}
+  // Delete all Firebase subcollections
+  if(!_fbReady||!_db){ console.warn('Firebase not ready for clear'); return; }
+  var colls=['clients','loans','payments','applications','disbursements'];
+  colls.forEach(function(col){
+    var subCol=col==='clients'?'c':col==='loans'?'l':col==='payments'?'p':col==='applications'?'a':'d';
+    _db.collection('salty').doc(col).collection(subCol).get().then(function(snap){
+      var batch=_db.batch();var count=0;
+      snap.forEach(function(doc){batch.delete(doc.ref);count++;if(count>=490){batch.commit();batch=_db.batch();count=0;}});
+      if(count>0)batch.commit();
+    }).catch(function(e){console.warn('Clear '+col+' error:',e);});
+  });
+  // Reset meta doc
+  _db.collection('salty').doc('meta').set({
+    cidc:1010,lidc:2010,USERS:USERS,manualEntries:{},
+    branches:branches,instantLoans:[],longTermLoans:[],
+    invoiceLoans:[],orderLoans:[],salaryLoans:[],
+    actLog:[],ts:Date.now()
+  }).catch(function(e){console.warn('Reset meta error:',e);});
+}
 function fullReset(){if(!confirm('FULL RESET &#8212; delete ALL data? This cannot be undone.'))return;if(!confirm('Last warning &#8212; confirm full reset?'))return;clients=[];loans=[];payments=[];applications=[];disbursements=[];instantLoans=[];longTermLoans=[];invoiceLoans=[];orderLoans=[];salaryLoans=[];actLog=[];cidc=1010;lidc=2010;logAct('act','Full system reset');clearSavedData();toast('System fully reset.');renderDataManage(document.getElementById('mainct'));}
 function initSig(id){var c=document.getElementById(id);if(!c)return;var ctx=c.getContext('2d');ctx.strokeStyle='#1a0a0a';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';var drawing=false,lx=0,ly=0;function getPos(e){var r=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*(c.width/r.width),y:(t.clientY-r.top)*(c.height/r.height)};}c.onmousedown=function(e){drawing=true;var p=getPos(e);lx=p.x;ly=p.y;};c.onmousemove=function(e){if(!drawing)return;var p=getPos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.stroke();lx=p.x;ly=p.y;};c.onmouseup=c.onmouseleave=function(){drawing=false;};c.ontouchstart=function(e){e.preventDefault();drawing=true;var p=getPos(e);lx=p.x;ly=p.y;};c.ontouchmove=function(e){e.preventDefault();if(!drawing)return;var p=getPos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.stroke();lx=p.x;ly=p.y;};c.ontouchend=function(){drawing=false;};}
 function clearSig(id){var c=document.getElementById(id);if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);}
