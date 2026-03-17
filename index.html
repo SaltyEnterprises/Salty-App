@@ -1405,7 +1405,10 @@ function startRealtimeSync() {
     }
   } catch(e) {}
 
-  if (!clients.length) seedDemo();
+  if (!clients.length && !localStorage.getItem('salty_cleared')) {
+    // Only seed demo if never been cleared before
+    // seedDemo(); // disabled for live use
+  }
   showHome();
 
   // 2. Connect Firebase and load live data
