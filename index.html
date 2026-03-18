@@ -6007,22 +6007,118 @@ function confirmDelDayPayment(lid,dayIdx){
 // ---- EDIT APPLICATION ----
 function openEditApp(id){
   var a=findA(id);if(!a)return;
-  _editAppId=id;
-  document.getElementById('ea_name').value=a.name||'';
-  document.getElementById('ea_nrc').value=a.nrc||'';
-  document.getElementById('ea_phone').value=a.phone||'';
-  _fillBranchSelect('ea_branch', a.branch||'', true);
-  document.getElementById('ea_branch').value=a.branch||'';
-  document.getElementById('ea_amt').value=a.amountRequested||'';
-  document.getElementById('ea_occ').value=a.occupation||'';
-  document.getElementById('ea_status').value=a.status||'draft';
-  // Officers can edit their own draft/submitted/rejected apps; admins can change status
+  // Permission check
   var isAdmin=canDo('admin');
-  var isOwnApp = canDo('officer') && a.officerUser === cu.username;
-  var canEdit = isAdmin || isOwnApp;
-  if (!canEdit) { toast('You can only edit your own applications.'); return; }
-  document.getElementById('ea_status').disabled=!isAdmin;
-  document.getElementById('editappmod').classList.add('op');
+  var isOwnApp=canDo('officer')&&a.officerUser===cu.username;
+  var canEdit=isAdmin||(isOwnApp&&(a.status==='draft'||a.status==='submitted'||a.status==='rejected'));
+  if(!canEdit){toast('You can only edit your own draft or submitted applications.');return;}
+
+  _editAppId=id;
+
+  // Open full application modal and pre-fill all fields
+  openAppModal();
+
+  // Pre-fill all basic fields
+  document.getElementById('apn').value=a.name||'';
+  document.getElementById('apnrc').value=a.nrc||'';
+  document.getElementById('apph').value=a.phone||'';
+  document.getElementById('apocc').value=a.occupation||'';
+  document.getElementById('apadr').value=a.address||'';
+  document.getElementById('apbadr').value=a.businessAddress||'';
+  document.getElementById('apamt').value=a.amountRequested||'';
+  _fillBranchSelect('apbr',a.branch||'',true);
+  document.getElementById('apbr').value=a.branch||'';
+  document.getElementById('apbr').disabled=!!(cu&&cu.role==='officer'&&cu.branch);
+  updateAppCalc();
+
+  // Pre-fill client type
+  if(a.clientType==='returning'){
+    document.getElementById('ct_ret').checked=true;
+  } else {
+    document.getElementById('ct_new').checked=true;
+  }
+  onClientTypeChange();
+
+  // Pre-fill spouse
+  if(a.spouse){
+    if(document.getElementById('apspn')) document.getElementById('apspn').value=a.spouse.name||'';
+    if(document.getElementById('apspnrc')) document.getElementById('apspnrc').value=a.spouse.nrc||'';
+    if(document.getElementById('apspph')) document.getElementById('apspph').value=a.spouse.phone||'';
+  }
+
+  // Pre-fill guarantor 1
+  if(a.g1){
+    if(document.getElementById('apg1n')) document.getElementById('apg1n').value=a.g1.name||'';
+    if(document.getElementById('apg1nrc')) document.getElementById('apg1nrc').value=a.g1.nrc||'';
+    if(document.getElementById('apg1ph')) document.getElementById('apg1ph').value=a.g1.phone||'';
+    if(document.getElementById('apg1ba')) document.getElementById('apg1ba').value=a.g1.ba||'';
+    if(document.getElementById('apg1ha')) document.getElementById('apg1ha').value=a.g1.ha||'';
+  }
+
+  // Pre-fill guarantor 2
+  if(a.g2){
+    if(document.getElementById('apg2n')) document.getElementById('apg2n').value=a.g2.name||'';
+    if(document.getElementById('apg2nrc')) document.getElementById('apg2nrc').value=a.g2.nrc||'';
+    if(document.getElementById('apg2ph')) document.getElementById('apg2ph').value=a.g2.phone||'';
+    if(document.getElementById('apg2ba')) document.getElementById('apg2ba').value=a.g2.ba||'';
+    if(document.getElementById('apg2ha')) document.getElementById('apg2ha').value=a.g2.ha||'';
+  }
+
+  // Pre-fill collateral rows
+  if(a.colRows&&a.colRows.length){
+    var tb=document.getElementById('coltbody');tb.innerHTML='';
+    for(var i=0;i<a.colRows.length;i++){
+      var r=a.colRows[i];
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td><input placeholder="e.g. Upright Fridge" value="'+esc(r.item||'')+'"></td><td><input type="number" placeholder="0.00" value="'+esc(r.price||'')+'"></td><td><select style="width:100%;border:none;background:transparent;font-size:12px"><option'+(r.condition==='New'?' selected':'')+'>New</option><option'+(r.condition==='Good'?' selected':'')+'>Good</option><option'+(r.condition==='Fair'?' selected':'')+'>Fair</option><option'+(r.condition==='Old'?' selected':'')+'>Old</option></select></td><td><input type="number" placeholder="0.00" value="'+esc(r.fsv||'')+'"></td><td><button class="ab" style="color:var(--r)" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+      tb.appendChild(tr);
+    }
+  }
+
+  // Change modal title and buttons to show this is an edit
+  var mtt=document.querySelector('#appmod .mtt');
+  if(mtt) mtt.textContent='✏️ Edit Application';
+  var submitBtn=document.querySelector('#appmod .mft .btn.btr');
+  if(submitBtn) submitBtn.setAttribute('onclick','saveEditAppFull()');
+}
+
+function saveEditAppFull(){
+  // Same as saveApp but updates existing application instead of creating new
+  var a=findA(_editAppId);if(!a)return;
+  var name=document.getElementById('apn').value.trim();
+  var nrc=document.getElementById('apnrc').value.trim();
+  var phone=document.getElementById('apph').value.trim();
+  var branch=document.getElementById('apbr').value;
+  var amt=parseFloat(document.getElementById('apamt').value)||0;
+  if(!name||!nrc||!phone||!branch||!amt){toast('Please fill all required fields.');return;}
+
+  var colRows=[],g1Rows=[],g2Rows=[];
+  var ctrs=document.getElementById('coltbody').querySelectorAll('tr');
+  for(var i=0;i<ctrs.length;i++){var ins=ctrs[i].querySelectorAll('input,select');if(ins[0]&&ins[0].value.trim())colRows.push({item:ins[0].value,price:ins[1]?ins[1].value:'',condition:ins[2]?ins[2].value:'',fsv:ins[3]?ins[3].value:''});}
+  var g1trs=document.getElementById('g1tbl').querySelectorAll('tr');
+  for(var i=0;i<g1trs.length;i++){var ins=g1trs[i].querySelectorAll('input,select');if(ins[0]&&ins[0].value.trim())g1Rows.push({item:ins[0].value,condition:ins[1]?ins[1].value:'',comments:ins[2]?ins[2].value:''});}
+  var g2trs=document.getElementById('g2tbl').querySelectorAll('tr');
+  for(var i=0;i<g2trs.length;i++){var ins=g2trs[i].querySelectorAll('input,select');if(ins[0]&&ins[0].value.trim())g2Rows.push({item:ins[0].value,condition:ins[1]?ins[1].value:'',comments:ins[2]?ins[2].value:''});}
+
+  a.name=name;a.nrc=nrc;a.phone=phone;a.branch=branch;
+  a.amountRequested=amt;a.amountDue=amt*1.4;a.dailyPayment=amt*1.4/25;
+  a.occupation=(document.getElementById('apocc')||{value:''}).value;
+  a.address=(document.getElementById('apadr')||{value:''}).value;
+  a.businessAddress=(document.getElementById('apbadr')||{value:''}).value;
+  a.clientType=(document.getElementById('ct_ret')&&document.getElementById('ct_ret').checked)?'returning':'new';
+  a.colRows=colRows;
+  a.g1={name:(document.getElementById('apg1n')||{value:''}).value,nrc:(document.getElementById('apg1nrc')||{value:''}).value,phone:(document.getElementById('apg1ph')||{value:''}).value,ba:(document.getElementById('apg1ba')||{value:''}).value,ha:(document.getElementById('apg1ha')||{value:''}).value,items:g1Rows};
+  a.g2={name:(document.getElementById('apg2n')||{value:''}).value,nrc:(document.getElementById('apg2nrc')||{value:''}).value,phone:(document.getElementById('apg2ph')||{value:''}).value,ba:(document.getElementById('apg2ba')||{value:''}).value,ha:(document.getElementById('apg2ha')||{value:''}).value,items:g2Rows};
+  a.spouse={name:(document.getElementById('apspn')||{value:''}).value,nrc:(document.getElementById('apspnrc')||{value:''}).value,phone:(document.getElementById('apspph')||{value:''}).value};
+
+  logAct('act','Edited application for '+name);
+  _markDirty('applications',a.id);_markDirty('meta','');
+  _saveDoc('applications',a.id,a);
+  save();
+  closeModal('appmod');
+  toast('Application updated!');
+  renderMyApps(document.getElementById('mainct'));
+  _editAppId=null;
 }
 function saveEditApp(){
   var a=findA(_editAppId);if(!a)return;
