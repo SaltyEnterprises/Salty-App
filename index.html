@@ -1894,9 +1894,9 @@ function doLogout(){logAct('out','Signed out');cu=null;document.getElementById('
 function makeH(id){return function(){showTab(id);};}
 function buildNav(){
   var r=cu.role,tabs=[];
-  if(r==='admin'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'instantloans',label:'&#9889; Instant Loans'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
+  if(r==='admin'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
   else if(r==='credit_north'||r==='credit_south'){tabs=[{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications',b:true},{id:'disbursements',label:'Disbursements',b:true},{id:'clients',label:'Clients'},{id:'loans',label:'Loans'},{id:'dailypay',label:'Daily Payments'},{id:'collateral',label:'Collateral'},{id:'reports',label:'Reports'},{id:'activity',label:'Activity'},{id:'datamanage',label:'Data'}];}
-  else if(r==='finance_manager'){tabs=[{id:'instantloans',label:'&#9889; Instant Loans',b:true},{id:'activity',label:'Activity'}];}
+  else if(r==='finance_manager'){tabs=[{id:'activity',label:'Activity'}];}
   else if(r==='manager'){tabs=[{id:'applications',label:'Applications',b:true}];}
   else if(r==='officer'){tabs=[{id:'myapps',label:'My Submissions',b:true},{id:'newapp',label:'+ Register Client'}];}
   else if(r==='assistant'){tabs=[{id:'disbursements',label:'Disbursements',b:true},{id:'myapps',label:'Approved Clients'}];}
@@ -1965,7 +1965,7 @@ function buildBranchBar(){
   bb.innerHTML=h;
 }
 function setBranch(b,el){abr=b;var bcs=document.querySelectorAll('.bc');for(var i=0;i<bcs.length;i++)bcs[i].classList.remove('ac');el.classList.add('ac');showHome();}
-function showHome(){if(cu.role==='officer')showTab('myapps');else if(cu.role==='assistant')showTab('disbursements');else if(cu.role==='manager')showTab('applications');else if(cu.role==='finance_manager')showTab('instantloans');else showTab('dashboard');}
+function showHome(){if(cu.role==='officer')showTab('myapps');else if(cu.role==='assistant')showTab('disbursements');else if(cu.role==='manager')showTab('applications');else if(cu.role==='finance_manager')showTab('activity');else showTab('dashboard');}
 function showTab(n){
   window._currentTab = n;
   var nts=document.querySelectorAll('.nt');for(var i=0;i<nts.length;i++)nts[i].classList.remove('ac');
@@ -1983,7 +1983,6 @@ function showTab(n){
   else if(n==='reports')renderReports(mc);
   else if(n==='activity')renderActivity(mc);
   else if(n==='datamanage')renderDataManage(mc);
-  else if(n==='instantloans')renderInstantLoans(mc);
   else if(n==='longtermloans')renderLongTermLoans(mc);
   else if(n==='invoiceloans')renderInvoiceLoans(mc);
   else if(n==='orderloans')renderOrderLoans(mc);
