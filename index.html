@@ -1438,6 +1438,27 @@ function _loadFromFirebase() {
 
   function checkAllLoaded() {
     for (var k in loaded) if (!loaded[k]) return;
+    // Auto-delete sample data if still present
+    var sampleIds=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'];
+    var sampleFound=false;
+    for(var si=0;si<clients.length;si++){if(sampleIds.indexOf(clients[si].id)>=0){sampleFound=true;break;}}
+    if(sampleFound&&_fbReady&&_db){
+      console.log('🧹 Auto-removing sample data...');
+      var sampleLoanIds=[];
+      for(var si=0;si<loans.length;si++){if(sampleIds.indexOf(loans[si].clientId)>=0)sampleLoanIds.push(loans[si].id);}
+      clients=clients.filter(function(c){return sampleIds.indexOf(c.id)<0;});
+      loans=loans.filter(function(l){return sampleIds.indexOf(l.clientId)<0;});
+      payments=payments.filter(function(p){var found=false;for(var i=0;i<sampleLoanIds.length;i++){if(String(p.loanId)===String(sampleLoanIds[i])){found=true;break;}}return !found;});
+      // Delete from Firebase
+      sampleIds.forEach(function(id){
+        _db.collection('salty').doc('clients').collection('c').doc(id).delete().catch(function(){});
+      });
+      sampleLoanIds.forEach(function(id){
+        _db.collection('salty').doc('loans').collection('l').doc(id).delete().catch(function(){});
+      });
+      _saveLS();
+      console.log('✅ Sample data removed');
+    }
     // All loaded — save to localStorage and refresh UI
     _saveLS();
     if (cu) {
@@ -2347,17 +2368,21 @@ function _uploadPhotosInBackground(appId) {
 
     var app = findA(appId);
     if (app) {
-      app.businessPhotos  = results.businessPhotos;
-      app.homePhotos      = results.homePhotos;
-      app.guarantorPhotos = results.guarantorPhotos;
-      app.g1Photos        = results.g1Photos;
-      app.g2Photos        = results.g2Photos;
+      app.businessPhotos  = results.businessPhotos.length  ? results.businessPhotos  : app.businessPhotos;
+      app.homePhotos      = results.homePhotos.length      ? results.homePhotos      : app.homePhotos;
+      app.guarantorPhotos = results.guarantorPhotos.length ? results.guarantorPhotos : app.guarantorPhotos;
+      app.g1Photos        = results.g1Photos.length        ? results.g1Photos        : app.g1Photos;
+      app.g2Photos        = results.g2Photos.length        ? results.g2Photos        : app.g2Photos;
+      // Save immediately to Firebase — don't wait for dirty tracking
+      _saveDoc('applications', appId, app);
       _markDirty('applications', appId);
       save();
       toast('\ud83d\udcf7 ' + uploaded + ' photo(s) saved to cloud.');
+      console.log('Photos saved for app:', appId, uploaded, 'photos');
     }
   }).catch(function(e) {
     console.error('Background photo upload failed:', e);
+    toast('⚠️ Some photos failed to upload. Please try editing the application to re-attach them.');
   });
 }
 
