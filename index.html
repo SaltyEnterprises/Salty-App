@@ -2332,6 +2332,70 @@ function _uploadOnePhoto(dataUrl, filename) {
 
 // Upload all photos from pph in the background after app is submitted.
 // Patches the saved app with real Cloudinary URLs then re-saves to Firestore.
+function _uploadPhotosAndSigsInBackground(appId, appObj) {
+  // Upload both photos from pph AND signatures from canvas
+  var types = {
+    businessPhotos:  pph.business.slice(),
+    homePhotos:      pph.home.slice(),
+    guarantorPhotos: pph.guarantor.slice(),
+    g1Photos:        pph.g1photos.slice(),
+    g2Photos:        pph.g2photos.slice()
+  };
+  var uploads = [];
+  var results = { businessPhotos:[], homePhotos:[], guarantorPhotos:[], g1Photos:[], g2Photos:[] };
+
+  // Queue photo uploads
+  Object.keys(types).forEach(function(field) {
+    types[field].forEach(function(photo, idx) {
+      var src = (photo && photo.preview) ? photo.preview : (typeof photo === 'string' ? photo : null);
+      if (!src || src.indexOf('data:') !== 0) return;
+      var slot = results[field].length; results[field].push(null);
+      var filename = appId + '_' + field + '_' + idx + '_' + Date.now();
+      uploads.push(_uploadOnePhoto(src, filename).then(function(url) { if(url) results[field][slot]=url; }));
+    });
+  });
+
+  // Queue signature uploads
+  var sigFields = ['clientSig','spouseSig','g1Sig','g2Sig'];
+  var sigCanvases = ['sig-client','sig-spouse','sig-g1','sig-g2'];
+  var sigResults = {};
+  sigCanvases.forEach(function(canvasId, idx) {
+    var sigData = getSigData(canvasId);
+    if (!sigData) return;
+    var slot = sigFields[idx];
+    var filename = appId + '_' + slot + '_' + Date.now();
+    uploads.push(_uploadOnePhoto(sigData, filename).then(function(url) { if(url) sigResults[slot]=url; }));
+  });
+
+  Promise.all(uploads).then(function() {
+    var app = findA(appId);
+    if (!app) return;
+    var uploaded = 0;
+
+    // Apply photo results
+    Object.keys(results).forEach(function(k) {
+      var urls = results[k].filter(Boolean);
+      if (urls.length) { app[k] = urls; uploaded += urls.length; }
+    });
+
+    // Apply signature results as Cloudinary URLs
+    if (sigResults.clientSig) { app.clientSig = sigResults.clientSig; uploaded++; }
+    if (sigResults.spouseSig && app.spouse) { app.spouse.sig = sigResults.spouseSig; uploaded++; }
+    if (sigResults.g1Sig && app.g1) { app.g1.sig = sigResults.g1Sig; uploaded++; }
+    if (sigResults.g2Sig && app.g2) { app.g2.sig = sigResults.g2Sig; uploaded++; }
+
+    if (uploaded > 0) {
+      _saveDoc('applications', appId, app);
+      _markDirty('applications', appId);
+      save();
+      toast('📷 ' + uploaded + ' photo(s)/signature(s) saved!');
+    }
+  }).catch(function(e) {
+    console.error('Upload failed:', e);
+    toast('⚠️ Some photos failed to upload. Please try again.');
+  });
+}
+
 function _uploadPhotosInBackground(appId) {
   var types = {
     businessPhotos:  pph.business.slice(),
@@ -2342,7 +2406,26 @@ function _uploadPhotosInBackground(appId) {
   };
   var total = 0;
   Object.keys(types).forEach(function(k){ total += types[k].length; });
-  if (!total) return;
+
+  // Also upload signatures
+  var app = findA(appId);
+  var sigUploads = [];
+  var sigResults = {};
+  if(app) {
+    var sigs = {clientSig: app.clientSig, spouseSig: app.spouse&&app.spouse.sig, g1Sig: app.g1&&app.g1.sig, g2Sig: app.g2&&app.g2.sig};
+    Object.keys(sigs).forEach(function(key){
+      var sigData = sigs[key];
+      if(sigData && sigData.indexOf('data:')===0){
+        var slot = key;
+        sigResults[slot] = null;
+        sigUploads.push(
+          _uploadOnePhoto(sigData, appId+'_'+key+'_'+Date.now()).then(function(url){ if(url) sigResults[slot]=url; })
+        );
+      }
+    });
+  }
+
+  if (!total && !sigUploads.length) return;
 
   var uploads = [];
   var results = { businessPhotos:[], homePhotos:[], guarantorPhotos:[], g1Photos:[], g2Photos:[] };
@@ -2360,24 +2443,29 @@ function _uploadPhotosInBackground(appId) {
     });
   });
 
-  Promise.all(uploads).then(function() {
+  Promise.all(uploads.concat(sigUploads)).then(function() {
     var uploaded = 0;
     Object.keys(results).forEach(function(k){ results[k]=results[k].filter(Boolean); uploaded+=results[k].length; });
-    if (!uploaded) { console.warn('No photos uploaded to Cloudinary'); return; }
 
     var app = findA(appId);
     if (app) {
-      app.businessPhotos  = results.businessPhotos.length  ? results.businessPhotos  : app.businessPhotos;
-      app.homePhotos      = results.homePhotos.length      ? results.homePhotos      : app.homePhotos;
-      app.guarantorPhotos = results.guarantorPhotos.length ? results.guarantorPhotos : app.guarantorPhotos;
-      app.g1Photos        = results.g1Photos.length        ? results.g1Photos        : app.g1Photos;
-      app.g2Photos        = results.g2Photos.length        ? results.g2Photos        : app.g2Photos;
-      // Save immediately to Firebase — don't wait for dirty tracking
+      if(results.businessPhotos.length)  app.businessPhotos  = results.businessPhotos;
+      if(results.homePhotos.length)      app.homePhotos      = results.homePhotos;
+      if(results.guarantorPhotos.length) app.guarantorPhotos = results.guarantorPhotos;
+      if(results.g1Photos.length)        app.g1Photos        = results.g1Photos;
+      if(results.g2Photos.length)        app.g2Photos        = results.g2Photos;
+      // Save signature URLs
+      if(sigResults.clientSig) app.clientSig = sigResults.clientSig;
+      if(sigResults.spouseSig && app.spouse) app.spouse.sig = sigResults.spouseSig;
+      if(sigResults.g1Sig && app.g1) app.g1.sig = sigResults.g1Sig;
+      if(sigResults.g2Sig && app.g2) app.g2.sig = sigResults.g2Sig;
+      // Save immediately to Firebase
       _saveDoc('applications', appId, app);
       _markDirty('applications', appId);
       save();
-      toast('\ud83d\udcf7 ' + uploaded + ' photo(s) saved to cloud.');
-      console.log('Photos saved for app:', appId, uploaded, 'photos');
+      var total2 = uploaded + Object.keys(sigResults).filter(function(k){return sigResults[k];}).length;
+      if(total2>0) toast('\ud83d\udcf7 ' + uploaded + ' photo(s)' + (Object.keys(sigResults).filter(function(k){return sigResults[k];}).length?' + signatures':'')+' saved to cloud.');
+      console.log('Photos/sigs saved for app:', appId);
     }
   }).catch(function(e) {
     console.error('Background photo upload failed:', e);
@@ -2449,11 +2537,11 @@ function saveApp(isDraft) {
   _saveDoc('applications', app.id, app);
   save();
   closeModal('appmod');
-  toast(isDraft ? 'Draft saved!' : 'Application submitted to Credit Controller!');
+  toast(isDraft ? 'Draft saved!' : 'Application submitted! Photos uploading...');
   showTab('myapps');
 
-  // Upload photos silently in the background after modal is gone
-  if (!isDraft) _uploadPhotosInBackground(appId);
+  // Upload photos and signatures in background after modal is gone
+  if (!isDraft) _uploadPhotosAndSigsInBackground(app.id, app);
 }
 
 function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
@@ -6135,12 +6223,30 @@ function saveEditAppFull(){
   a.g2={name:(document.getElementById('apg2n')||{value:''}).value,nrc:(document.getElementById('apg2nrc')||{value:''}).value,phone:(document.getElementById('apg2ph')||{value:''}).value,ba:(document.getElementById('apg2ba')||{value:''}).value,ha:(document.getElementById('apg2ha')||{value:''}).value,items:g2Rows};
   a.spouse={name:(document.getElementById('apspn')||{value:''}).value,nrc:(document.getElementById('apspnrc')||{value:''}).value,phone:(document.getElementById('apspph')||{value:''}).value};
 
+  // Save signatures
+  var clientSig = getSigData('sig-client');
+  var spouseSig = getSigData('sig-spouse');
+  var g1Sig = getSigData('sig-g1');
+  var g2Sig = getSigData('sig-g2');
+  if(clientSig) a.clientSig = clientSig;
+  if(spouseSig) a.spouse.sig = spouseSig;
+  if(g1Sig) a.g1.sig = g1Sig;
+  if(g2Sig) a.g2.sig = g2Sig;
+
   logAct('act','Edited application for '+name);
   _markDirty('applications',a.id);_markDirty('meta','');
   _saveDoc('applications',a.id,a);
   save();
   closeModal('appmod');
-  toast('Application updated!');
+  // Upload photos AND signatures to Cloudinary
+  var hasPhotos=pph.business.length||pph.home.length||pph.guarantor.length||pph.g1photos.length||pph.g2photos.length;
+  var hasSigs=getSigData('sig-client')||getSigData('sig-spouse')||getSigData('sig-g1')||getSigData('sig-g2');
+  if(hasPhotos||hasSigs){
+    toast('Saving photos and signatures...');
+    _uploadPhotosAndSigsInBackground(a.id, a);
+  } else {
+    toast('Application updated!');
+  }
   renderMyApps(document.getElementById('mainct'));
   _editAppId=null;
 }
