@@ -2064,9 +2064,14 @@ function renderMyApps(mc){
       h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">&#10003; Approved — Awaiting Disbursement</span></div><div class="cdb">';
       for(var i=0;i<approved.length;i++){
         var a=approved[i];
-        h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)">';
-        h+='<div><div style="font-weight:700">'+esc(a.name)+'</div>';
-        h+='<div style="font-size:11px;color:var(--mu)">'+esc(a.nrc||'—')+' &nbsp;&#183;&nbsp; Approved by: '+esc(a.decidedBy||'—')+'</div></div>';
+        var colList2='';if(a.colRows&&a.colRows.length){for(var ci2=0;ci2<a.colRows.length;ci2++){colList2+=esc(a.colRows[ci2].item)+(ci2<a.colRows.length-1?', ':'');}}
+        h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--bd);flex-wrap:wrap;gap:6px">';
+        h+='<div>';
+        h+='<div style="font-weight:700">'+esc(a.name)+'</div>';
+        h+='<div style="font-size:11px;color:var(--mu);margin-top:2px">&#128100; '+esc(a.nrc||'—')+'&nbsp;&nbsp;&#128222; '+esc(a.phone||'—')+'</div>';
+        if(colList2)h+='<div style="font-size:11px;color:var(--wn);margin-top:2px">&#128274; '+colList2+'</div>';
+        h+='<div style="font-size:11px;color:var(--mu);margin-top:2px">Approved by: '+esc(a.decidedBy||'—')+'</div>';
+        h+='</div>';
         h+='<div style="text-align:right"><div style="font-family:monospace;font-weight:800;color:var(--ok)">'+zmw(a.amountApproved||a.amountRequested)+'</div>';
         h+='<button class="ab" style="margin-top:4px" onclick="viewApp(\''+a.id+'\',\'renderMyApps(document.getElementById(\\\'mainct\\\'))\')">View</button></div></div>';
       }
@@ -2737,7 +2742,17 @@ function renderDisbursements(mc){
     readyBanner+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">Approved &amp; Awaiting Disbursement</span></div><div class="cdb">';
     for(var i=0;i<readyApps.length;i++){
       var a=readyApps[i];
-      readyBanner+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd)"><div><div style="font-weight:600">'+esc(a.name)+'</div><div style="font-size:11px;color:var(--mu)">'+esc(a.branch)+' &#183; '+esc(a.nrc||'')+'</div></div><div style="font-family:monospace;font-size:13px;color:var(--ok);font-weight:700">'+zmw(a.amountApproved)+'</div></div>';
+      var colList='';if(a.colRows&&a.colRows.length){for(var ci=0;ci<a.colRows.length;ci++){colList+=esc(a.colRows[ci].item)+(ci<a.colRows.length-1?', ':'');}}
+      readyBanner+='<div style="padding:10px 0;border-bottom:1px solid var(--bd)">';
+      readyBanner+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">';
+      readyBanner+='<div>';
+      readyBanner+='<div style="font-weight:700;font-size:14px">'+esc(a.name)+'</div>';
+      readyBanner+='<div style="font-size:11px;color:var(--mu);margin-top:2px">&#128100; '+esc(a.nrc||'—')+'&nbsp;&nbsp;&#128222; '+esc(a.phone||'—')+'</div>';
+      if(colList)readyBanner+='<div style="font-size:11px;color:var(--wn);margin-top:2px">&#128274; <strong>Collateral:</strong> '+colList+'</div>';
+      readyBanner+='<div style="font-size:11px;color:var(--mu);margin-top:2px">'+esc(a.branch)+'</div>';
+      readyBanner+='</div>';
+      readyBanner+='<div style="text-align:right"><div style="font-family:monospace;font-size:14px;color:var(--ok);font-weight:800">'+zmw(a.amountApproved)+'</div></div>';
+      readyBanner+='</div></div>';
     }
     readyBanner+='</div></div>';
   }
@@ -6280,7 +6295,12 @@ function confirmDelApp(id){
     'Delete application for <strong>'+esc(a.name)+'</strong>?<br><br>Status: <strong>'+a.status+'</strong>. This cannot be undone.',
     function(){
       applications=applications.filter(function(x){return x.id!==id;});
+      // Also delete from Firebase subcollection
+      if(_fbReady&&_db){
+        _db.collection('salty').doc('applications').collection('a').doc(id).delete().catch(function(e){console.warn('Del app FB:',e);});
+      }
       logAct('act','Deleted application for '+a.name);
+      _markDirty('meta','');
       save();
       toast('Application deleted.');
       showTab('applications');
