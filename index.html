@@ -2962,6 +2962,22 @@ function downloadDisbCSV(id){
   toast('Downloaded!');
 }
 
+function removeDisbClient(disbId, appId){
+  var d=findD(disbId);if(!d)return;
+  var dc=null;for(var i=0;i<d.clients.length;i++){if(d.clients[i].appId===appId){dc=d.clients[i];break;}}
+  if(!dc)return;
+  if(!confirm('Remove '+dc.name+' from this disbursement list?\n\nTheir application will remain approved — you can add them to the next list.'))return;
+  d.clients=d.clients.filter(function(c){return c.appId!==appId;});
+  // Reset application back to approved so it appears for next disbursement
+  for(var i=0;i<applications.length;i++){
+    if(applications[i].id===appId){applications[i].status='approved';break;}
+  }
+  logAct('act','Removed '+dc.name+' from disbursement list — returned to approved queue');
+  save();
+  toast(dc.name+' removed. They remain approved for next list.');
+  viewDisb(disbId);
+}
+
 function rejectDisb(id){var d=findD(id);if(!d)return;d.status='rejected';d.rejectedBy=cu.display;logAct('act','Rejected disbursement');toast('Rejected.');renderDisbursements(document.getElementById('mainct'));}
 function renderClients(mc,filter){
   var list=fBr(clients);if(filter){var fl=[];for(var i=0;i<list.length;i++){var c=list[i];if(c.name.toLowerCase().indexOf(filter)>=0||String(c.phone).indexOf(filter)>=0)fl.push(c);}list=fl;}
@@ -3180,10 +3196,13 @@ function viewDisb(id){
     h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)">';
     h+='<div><div style="font-weight:700;font-size:14px">'+esc(dc.name)+'</div>';
     h+='<div style="font-size:11px;color:var(--mu)">NRC: '+esc(dc.nrc||'—')+'</div>';
+    h+='<div style="font-size:11px;color:var(--mu)">📞 '+esc(dc.phone||a&&a.phone||'—')+'</div>';
+    if(dc.collateral||(a&&a.colRows&&a.colRows.length))h+='<div style="font-size:11px;color:var(--wn)">🔒 '+esc(dc.collateral||(a&&a.colRows?a.colRows.map(function(r){return r.item;}).join(', '):''))+'</div>';
     h+='<div><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(dc.branch)+'</span></div></div>';
-    h+='<div style="text-align:right">';
+    h+='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
     h+='<div style="font-family:monospace;font-weight:800;font-size:15px;color:var(--ok)">'+zmw(dc.amount)+'</div>';
-    if(a)h+='<button class="ab" style="margin-top:4px" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View Application</button>';
+    if(a)h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View App</button>';
+    if(d.status==='pending'&&canDo('credit_north','credit_south','admin'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove</button>';
     h+='</div></div>';
   }
   h+='</div></div>';
