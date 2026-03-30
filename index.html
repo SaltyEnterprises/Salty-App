@@ -3171,6 +3171,7 @@ function viewDisb(id){
   h+='<button class="btn" style="background:var(--s2);border:1px solid var(--bd);color:var(--tx);" onclick="printDisb(\''+id+'\')">🖨 Print List</button>';
   h+='<button class="btn" style="background:var(--s2);border:1px solid var(--bd);color:var(--tx);" onclick="downloadDisbCSV(\''+id+'\')">⬇ Download CSV</button>';
   // Approval action for CC
+  var _allDone=d.clients.length>0&&d.clients.every(function(dc){var _a=findA(dc.appId);return _a&&_a.status==='disbursed';});if(_allDone&&d.status==='pending'){d.status='approved';d.approvedBy=d.approvedBy||'Auto';d.approvedAt=d.approvedAt||now_();save();}
   if(canDo('credit_north','credit_south')&&d.status==='pending'){
     h+='<div style="display:flex;gap:10px;margin-bottom:14px">';
     h+='<button class="btn btr" style="flex:1;padding:14px;font-size:15px" onclick="rejectDisb(\''+d.id+'\');renderDisbursements(document.getElementById(\'mainct\'))">&#10007; Reject List</button>';
