@@ -3261,10 +3261,19 @@ function renderDailyPay(mc) {
   var today = td_();
   var dow = new Date(today + 'T00:00:00').getDay();
   var isWeekend = (dow === 0 || dow === 6);
+  window._dpSelectedDate = window._dpSelectedDate || today;
 
   var h = '<div style="background:linear-gradient(135deg,#1a3a5f,#1a5276);color:#fff;border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
   h += '<div><div style="font-size:20px;font-weight:800">&#128197; Daily Payments</div>';
   h += '<div style="font-size:12px;opacity:.8;margin-top:3px">'+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow]+' &nbsp;&#183;&nbsp; '+fmtD(today)+'</div></div>';
+  // Date picker for backdating
+  h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">';
+  h += '<label style="font-size:11px;opacity:.8;font-weight:600">Recording payments for:</label>';
+  h += '<input type="date" id="dp-date-picker" value="'+window._dpSelectedDate+'" max="'+today+'" ';
+  h += 'onchange="window._dpSelectedDate=this.value;var b=document.querySelector(\'.dp-br.ac\');if(b)buildDPTable(b.textContent.trim());" ';
+  h += 'style="padding:6px 10px;border-radius:8px;border:none;font-size:13px;font-weight:700;color:#1a3a5f;cursor:pointer;">';
+  if(window._dpSelectedDate !== today) h += '<div style="background:rgba(231,76,60,.8);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;">&#9200; BACKDATED — '+fmtD(window._dpSelectedDate)+'</div>';
+  h += '</div>';
   if(isWeekend) h += '<div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600">&#128308; Weekend — No payments due</div>';
   h += '</div>';
 
@@ -3305,6 +3314,7 @@ function switchDPBranch(branch, btn) {
 
 function buildDPTable(branch) {
   var today = td_();
+  var selectedDate = window._dpSelectedDate || today;
   var el = document.getElementById('dp-table');
   if(!el) return;
 
@@ -3315,9 +3325,9 @@ function buildDPTable(branch) {
     if(l.status !== 'Active') continue;
     var c = findC(l.clientId);
     if(!c || c.branch.toLowerCase().trim() !== branch.toLowerCase().trim()) continue;
-    // Find today's day index
+    // Find selected date's day index
     var dayIdx = -1;
-    if(l.dayDates) for(var d=0;d<l.dayDates.length;d++) { if(l.dayDates[d]===today){dayIdx=d;break;} }
+    if(l.dayDates) for(var d=0;d<l.dayDates.length;d++) { if(l.dayDates[d]===selectedDate){dayIdx=d;break;} }
     var alreadyPaid = dayIdx>=0 && l.dayPayments && l.dayPayments[dayIdx] ? l.dayPayments[dayIdx] : 0;
     rows.push({loan:l, client:c, dayIdx:dayIdx, alreadyPaid:alreadyPaid});
   }
@@ -3328,8 +3338,9 @@ function buildDPTable(branch) {
   }
 
   var paidCount = rows.filter(function(r){return r.alreadyPaid>0;}).length;
+  var dateLabel = selectedDate===today ? 'today' : fmtD(selectedDate);
   var h = '<div class="cd"><div class="cdh"><span class="cdt">&#128176; '+esc(branch)+' — '+rows.length+' Active Loans';
-  h += ' <span style="font-size:11px;font-weight:400;color:var(--mu)">('+paidCount+' paid today)</span></span>';
+  h += ' <span style="font-size:11px;font-weight:400;color:var(--mu)">('+paidCount+' paid '+dateLabel+')</span></span>';
   h += '<button class="btn btk bts" onclick="saveAllDayPayments(\''+branch+'\')">&#10003; Save All Payments</button></div>';
   h += '<div style="padding:10px 14px">';
   h += '<table style="width:100%;border-collapse:collapse">';
@@ -3381,6 +3392,7 @@ function dpMarkChanged(input) {
 
 function saveAllDayPayments(branch) {
   var today = td_();
+  var selectedDate = window._dpSelectedDate || today;
   var inputs = document.querySelectorAll('.dp-input');
   var saved = 0, skipped = 0;
   for(var i=0;i<inputs.length;i++) {
@@ -3394,23 +3406,23 @@ function saveAllDayPayments(branch) {
     if(dayIdx >= 0) {
       if(!l.dayPayments) l.dayPayments = new Array(25).fill(null);
       while(l.dayPayments.length < 25) l.dayPayments.push(null);
-      l.dayPayments[dayIdx] = amt;
+      // Accumulate — don't overwrite (supports recovery)
+      l.dayPayments[dayIdx] = (l.dayPayments[dayIdx]||0) + amt;
     } else {
-      // No scheduled day — record in payments array
-      payments.push({id:Date.now()+Math.random()+i, loanId:lid, amount:amt, date:today, notes:'Daily entry', recordedBy:cu.display});
+      payments.push({id:Date.now()+Math.random()+i, loanId:lid, amount:amt, date:selectedDate, notes:'Daily entry'+(selectedDate!==today?' (backdated)':''), recordedBy:cu.display});
     }
-    // Auto-complete loan if fully paid
     var stats = calcLoanStats(l);
     if(stats.balance <= 0 && stats.futureDays === 0) {
       l.status = 'Completed';
       var lc = findC(l.clientId);
-      if(lc) lc.collateralLockedDate = today;
+      if(lc) lc.collateralLockedDate = selectedDate;
     }
     saved++;
   }
-  logAct('act', 'Daily payments saved for '+branch+': '+saved+' clients');
+  var dateLabel = selectedDate===today?'today':fmtD(selectedDate);
+  logAct('act', 'Daily payments saved for '+branch+' ('+dateLabel+'): '+saved+' clients');
   save();
-  toast('&#10003; '+saved+' payment'+(saved!==1?'s':'')+' saved for '+branch+(skipped?' ('+skipped+' skipped)':'')+'!');
+  toast('&#10003; '+saved+' payment'+(saved!==1?'s':'')+' saved for '+branch+' ('+dateLabel+')'+(skipped?' — '+skipped+' skipped':'')+'!');
   buildDPTable(branch);
 }
 
