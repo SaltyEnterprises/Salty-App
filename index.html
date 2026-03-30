@@ -2847,6 +2847,7 @@ function approveDisb(id, seriesLetter){
   for(var i=0;i<d.clients.length;i++){if(!(d.clients[i].amount>0))zeroAmounts.push(d.clients[i].name);}
   if(zeroAmounts.length){toast('Cannot approve — missing loan amount for: '+zeroAmounts.join(', '));return;}
   d.status='approved';d.approvedBy=cu.display;d.approvedAt=now_();d.series=seriesLetter;
+  _markDirty('disbursements', d.id); // ← mark disbursement dirty so status saves to Firebase
   // Find next available number for this series (shared across all branches)
   var usedNums={};
   for(var i=0;i<clients.length;i++){
@@ -2871,9 +2872,8 @@ function approveDisb(id, seriesLetter){
     }
     if(!c){
       // New client — assign next series code
-      var clientCode = seriesLetter + nextNum;
       while(usedNums[nextNum]) nextNum++;
-      clientCode = seriesLetter + nextNum;
+      var clientCode = seriesLetter + nextNum;
       usedNums[nextNum] = true;
       nextNum++;
       c={id:gCid(),code:clientCode,sourceAppId:a.id,name:a.name,nrc:a.nrc||'',phone:a.phone||'',
@@ -2887,7 +2887,8 @@ function approveDisb(id, seriesLetter){
         collateralLockedDate:d.date,regDate:d.date};
       clients.push(c);
     }
-    // Create loan — loan also carries the series letter
+    _markDirty('clients', c.id); // ← mark client dirty
+    // Create loan
     var newLoan={id:gLid(),code:c.code,clientId:c.id,sourceAppId:a.id,
       amountGiven:dc.amount||0,interest:(dc.amount||0)*0.4,amountDue:(dc.amount||0)*1.4,
       dailyPayment:dc.amount*1.4/25,dateGiven:d.date,status:'Active',
@@ -2904,10 +2905,13 @@ function approveDisb(id, seriesLetter){
     newLoan.dayDates=dayDates;
     newLoan.dayPayments=new Array(25).fill(null);
     loans.push(newLoan);
+    _markDirty('loans', newLoan.id); // ← mark loan dirty
     c.collateralLockedDate=d.date;
     a.status='disbursed';
+    _markDirty('applications', a.id); // ← mark application dirty
     created++;
   }
+  _markDirty('meta',''); // ← mark meta dirty for counters
   logAct('act','Approved disbursement '+seriesLetter+'-series — '+created+' loans activated');
   save();
   updateBadges();
@@ -2972,7 +2976,7 @@ function removeDisbClient(disbId, appId){
   for(var i=0;i<applications.length;i++){
     if(applications[i].id===appId){applications[i].status='approved';break;}
   }
-  logAct('act','Removed '+dc.name+' from disbursement list — returned to approved queue');
+  _markDirty('disbursements',disbId);_markDirty('applications',appId);logAct('act','Removed '+dc.name+' from disbursement list — returned to approved queue');
   save();
   toast(dc.name+' removed. They remain approved for next list.');
   viewDisb(disbId);
@@ -3171,7 +3175,6 @@ function viewDisb(id){
   h+='<button class="btn" style="background:var(--s2);border:1px solid var(--bd);color:var(--tx);" onclick="printDisb(\''+id+'\')">🖨 Print List</button>';
   h+='<button class="btn" style="background:var(--s2);border:1px solid var(--bd);color:var(--tx);" onclick="downloadDisbCSV(\''+id+'\')">⬇ Download CSV</button>';
   // Approval action for CC
-  var _allDone=d.clients.length>0&&d.clients.every(function(dc){var _a=findA(dc.appId);return _a&&_a.status==='disbursed';});if(_allDone&&d.status==='pending'){d.status='approved';d.approvedBy=d.approvedBy||'Auto';d.approvedAt=d.approvedAt||now_();save();}
   if(canDo('credit_north','credit_south')&&d.status==='pending'){
     h+='<div style="display:flex;gap:10px;margin-bottom:14px">';
     h+='<button class="btn btr" style="flex:1;padding:14px;font-size:15px" onclick="rejectDisb(\''+d.id+'\');renderDisbursements(document.getElementById(\'mainct\'))">&#10007; Reject List</button>';
