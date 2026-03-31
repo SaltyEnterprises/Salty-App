@@ -2887,7 +2887,13 @@ function approveDisb(id, seriesLetter){
         collateralLockedDate:d.date,regDate:d.date};
       clients.push(c);
     }
-    _markDirty('clients', c.id); // ← mark client dirty
+    _markDirty('clients', c.id);
+    // ── DUPLICATE PREVENTION: skip if loan already exists for this application ──
+    var loanExists=false;
+    for(var lx=0;lx<loans.length;lx++){
+      if(loans[lx].sourceAppId===a.id||loans[lx].clientId===c.id){loanExists=true;break;}
+    }
+    if(loanExists){a.status='disbursed';continue;}
     // Create loan
     var newLoan={id:gLid(),code:c.code,clientId:c.id,sourceAppId:a.id,
       amountGiven:dc.amount||0,interest:(dc.amount||0)*0.4,amountDue:(dc.amount||0)*1.4,
@@ -5549,7 +5555,29 @@ function renderActivity(mc){var h='<div class="cd"><div class="cdh"><span class=
 function renderDataManage(mc){
   var sCodes=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'];
   var sCount=0;for(var i=0;i<clients.length;i++){if(sCodes.indexOf(clients[i].id)>=0)sCount++;}
+
+  // Count duplicates for warning
+  var dupClients=0,dupLoans=0;
+  var seenAppIds={};
+  for(var i=0;i<clients.length;i++){var sid=clients[i].sourceAppId;if(sid){if(seenAppIds[sid])dupClients++;else seenAppIds[sid]=clients[i].id;}}
+  var seenLoanApps={};
+  for(var i=0;i<loans.length;i++){var sid=loans[i].sourceAppId||loans[i].clientId;if(sid){if(seenLoanApps[sid])dupLoans++;else seenLoanApps[sid]=true;}}
+
   var h='<div style="background:linear-gradient(135deg,#1a0a0a,#3d1515);border-radius:14px;padding:20px 24px;margin-bottom:16px;color:#fff"><div style="font-size:20px;font-weight:700;margin-bottom:4px">Data Management</div><div style="font-size:12px;opacity:.7">Manage, reset or clear system data. All actions are permanent.</div></div>';
+
+  // ── DUPLICATE CLEANUP ────────────────────────────────────────────────────
+  if(dupClients>0||dupLoans>0){
+    h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--r)">';
+    h+='<div class="cdh" style="background:rgba(192,57,43,.08)"><span class="cdt" style="color:var(--r)">⚠️ Duplicate Records Detected</span></div>';
+    h+='<div class="cdb">';
+    h+='<div style="font-size:13px;margin-bottom:12px">Found <strong style="color:var(--r)">'+dupClients+' duplicate client'+(dupClients!==1?'s':'')+'</strong> and <strong style="color:var(--r)">'+dupLoans+' duplicate loan'+(dupLoans!==1?'s':'')+'</strong> caused by disbursement being approved twice.</div>';
+    h+='<div style="font-size:12px;color:var(--mu);margin-bottom:14px">The cleanup will keep the first record and remove the duplicates. Payment records on duplicate loans will be merged into the original before deletion.</div>';
+    h+='<button class="btn btr" style="padding:10px 20px;font-weight:700;" onclick="cleanupDuplicates()">🧹 Remove Duplicates Now</button>';
+    h+='</div></div>';
+  } else {
+    h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--ok)">';
+    h+='<div class="cdb"><div style="font-size:13px;color:var(--ok);font-weight:600;">✓ No duplicate clients or loans detected.</div></div></div>';
+  }
 
   // ── BRANCH MANAGEMENT ────────────────────────────────────────────────────
   h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--in)"><div class="cdh" style="background:rgba(52,152,219,.05)"><span class="cdt" style="color:var(--in)">&#127970; Branch Management</span></div><div class="cdb">';
@@ -5743,8 +5771,76 @@ function removeBranch(name){
 function deleteSampleData(){if(!confirm('Delete all 10 sample clients and their loans/payments?'))return;var sc=['SE-C1001','SE-C1002','SE-C1003','SE-C1004','SE-C1005','SE-C1006','SE-C1007','SE-C1008','SE-C1009','SE-C1010'],slids=[];for(var i=0;i<loans.length;i++){if(sc.indexOf(loans[i].clientId)>=0)slids.push(loans[i].id);}clients=clients.filter(function(c){return sc.indexOf(c.id)<0;});loans=loans.filter(function(l){return sc.indexOf(l.clientId)<0;});payments=payments.filter(function(p){return slids.indexOf(p.loanId)<0;});logAct('act','Deleted sample data');save();toast('Sample data deleted!');renderDataManage(document.getElementById('mainct'));}
 function clearClients(){if(!confirm('Delete ALL clients and their loans/payments?'))return;clients=[];loans=[];payments=[];logAct('act','Cleared all clients');save();toast('All clients cleared.');renderDataManage(document.getElementById('mainct'));}
 function clearLoans(){if(!confirm('Delete ALL loans and payments?'))return;for(var i=0;i<clients.length;i++)clients[i].collateralLockedDate=null;loans=[];payments=[];logAct('act','Cleared all loans');save();toast('All loans cleared.');renderDataManage(document.getElementById('mainct'));}
+function cleanupDuplicates(){
+  if(!confirm('This will permanently remove duplicate clients and loans.\n\nPayments on duplicate loans will be merged into the original.\n\nThis cannot be undone. Continue?'))return;
+
+  var removedClients=0,removedLoans=0,mergedPayments=0;
+
+  // ── Step 1: Remove duplicate CLIENTS (keep first by sourceAppId) ──
+  var seenAppIds={};
+  var dupClientIds=[];
+  for(var i=0;i<clients.length;i++){
+    var sid=clients[i].sourceAppId;
+    if(!sid)continue;
+    if(seenAppIds[sid]){
+      dupClientIds.push(clients[i].id);
+    } else {
+      seenAppIds[sid]=clients[i].id;
+    }
+  }
+
+  // ── Step 2: Remove duplicate LOANS, merge payments first ──
+  // Group loans by clientId — keep the first, remove rest
+  var clientLoans={};
+  for(var i=0;i<loans.length;i++){
+    var cid=loans[i].clientId;
+    if(!clientLoans[cid])clientLoans[cid]=[];
+    clientLoans[cid].push(loans[i]);
+  }
+  var loansToRemove=[];
+  for(var cid in clientLoans){
+    var group=clientLoans[cid];
+    if(group.length<=1)continue;
+    // Sort by creation — keep first
+    var keep=group[0];
+    for(var k=1;k<group.length;k++){
+      var dup=group[k];
+      // Merge dayPayments into keeper
+      if(dup.dayPayments&&keep.dayPayments){
+        for(var d=0;d<25;d++){
+          if(dup.dayPayments[d]){
+            keep.dayPayments[d]=(keep.dayPayments[d]||0)+dup.dayPayments[d];
+            mergedPayments++;
+          }
+        }
+      }
+      // Merge legacy payments
+      for(var p=0;p<payments.length;p++){
+        if(payments[p].loanId===dup.id){payments[p].loanId=keep.id;mergedPayments++;}
+      }
+      loansToRemove.push(dup.id);
+      // Delete from Firebase
+      if(_fbReady&&_db)_db.collection('salty').doc('loans').collection('l').doc(dup.id).delete().catch(function(){});
+    }
+    _markDirty('loans',keep.id);
+    removedLoans+=group.length-1;
+  }
+  loans=loans.filter(function(l){return loansToRemove.indexOf(l.id)<0;});
+
+  // ── Step 3: Remove duplicate clients from Firebase and array ──
+  for(var i=0;i<dupClientIds.length;i++){
+    if(_fbReady&&_db)_db.collection('salty').doc('clients').collection('c').doc(dupClientIds[i]).delete().catch(function(){});
+  }
+  clients=clients.filter(function(c){return dupClientIds.indexOf(c.id)<0;});
+  removedClients=dupClientIds.length;
+
+  logAct('act','Duplicate cleanup: removed '+removedClients+' clients, '+removedLoans+' loans, merged '+mergedPayments+' payments');
+  save();
+  toast('✓ Cleaned up: '+removedClients+' duplicate clients and '+removedLoans+' duplicate loans removed. '+mergedPayments+' payments merged.');
+  renderDataManage(document.getElementById('mainct'));
+}
+
 function clearSavedData(){
-  // Clear localStorage
   try { localStorage.removeItem('salty_v3'); } catch(e){}
   // Delete all Firebase subcollections
   if(!_fbReady||!_db){ console.warn('Firebase not ready for clear'); return; }
