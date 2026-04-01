@@ -3438,8 +3438,8 @@ function saveAllDayPayments(branch) {
     if(dayIdx >= 0) {
       if(!l.dayPayments) l.dayPayments = new Array(25).fill(null);
       while(l.dayPayments.length < 25) l.dayPayments.push(null);
-      // Accumulate — don't overwrite (supports recovery)
-      l.dayPayments[dayIdx] = (l.dayPayments[dayIdx]||0) + amt;
+      // OVERWRITE for bulk entry — input shows current value, officer edits directly
+      l.dayPayments[dayIdx] = amt;
     } else {
       payments.push({id:Date.now()+Math.random()+i, loanId:lid, amount:amt, date:selectedDate, notes:'Daily entry'+(selectedDate!==today?' (backdated)':''), recordedBy:cu.display});
     }
@@ -3634,7 +3634,7 @@ function getMondayOf(dateStr){
 // Compute stats for one branch on one date
 function rptDayStats(branch,dateStr){
   var today=td_();
-  var exp=0,coll=0,adv=0,recovery=0,createdPen=0,collPen=0,disbAmt=0;
+  var exp=0,coll=0,adv=0,recovery=0,disbAmt=0;
   var weekStart=getMondayOf(dateStr);
 
   for(var i=0;i<loans.length;i++){
@@ -3653,21 +3653,17 @@ function rptDayStats(branch,dateStr){
     var paid=(loan.dayPayments&&loan.dayPayments[di]!=null)?(loan.dayPayments[di]||0):0;
 
     exp+=due;
-    if(paid>due){coll+=due;adv+=paid-due;}
+    if(paid>due){coll+=due;adv+=(paid-due);}
     else coll+=paid;
 
-    // Penalty: missed days create 10 ZMW penalty each
-    if(paid===0&&dateStr<today){
-      createdPen+=10;
-    }
-
-    // Recovery: payment made on a day where the scheduled date is before the current week
+    // Recovery: payment on a day that is BEFORE the current week start
     if(paid>0&&dateStr<weekStart)recovery+=Math.min(paid,due);
   }
   var balance=Math.max(0,exp-coll);
+  // totalColl = normal collected + recovery (advance is tracked separately)
+  var totalColl=coll+recovery;
   return{exp:exp,coll:coll,balance:balance,adv:adv,recovery:recovery,
-    createdPen:createdPen,collPen:collPen,disbAmt:disbAmt,
-    totalColl:coll+adv+recovery+collPen};
+    createdPen:0,collPen:0,disbAmt:disbAmt,totalColl:totalColl};
 }
 
 // Cumulative balance = total outstanding across all active loans for branch
@@ -3825,18 +3821,18 @@ function buildDailyReport(){
     {label:'ADVANCE',            vals:bv('adv'),       cls:'var(--gd)'},
     {label:'CUMULATIVE ADVANCE', vals:branches.map(function(b){return stats[b].cumAdv;}), cls:''},
     {divider:true},
-    {label:'CREATED PENALTY',    vals:bv('createdPen'),cls:'var(--wn)'},
+    {label:'CREATED PENALTY',    vals:bv('createdPen'),cls:'var(--wn)', manual:{type:'createdpen',period:dateVal}},
     {label:'COLLECTED PENALTY',  vals:bv('collPen'),   cls:'var(--ok)', manual:{type:'collpen',period:dateVal}},
-    {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}), cls:'var(--wn)'},
+    {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}), cls:'var(--wn)', manual:{type:'cumpen',period:dateVal}},
     {divider:true},
     {label:'TOTAL RECOVERY',     vals:bv('recovery'),  cls:'var(--in)'},
     {divider:true},
     {label:'TOTAL COLLECTED',    vals:bv('totalColl'), cls:'var(--ok)', bold:true},
     {label:'CUMULATIVE BALANCE', vals:branches.map(function(b){return stats[b].cumBal;}), cls:'var(--r)', bold:true},
     {divider:true},
-    {label:'BALANCE IN COLLATERAL', vals:branches.map(function(){return 0;}), cls:''},
-    {label:'FOAM MONEY',         vals:branches.map(function(){return 0;}), cls:''},
-    {label:'EXPENSE',            vals:branches.map(function(){return 0;}), cls:'var(--r)'},
+    {label:'BALANCE IN COLLATERAL', vals:branches.map(function(){return 0;}), cls:'', manual:{type:'balcol',period:dateVal}},
+    {label:'FOAM MONEY',         vals:branches.map(function(){return 0;}), cls:'', manual:{type:'foam',period:dateVal}},
+    {label:'EXPENSE',            vals:branches.map(function(){return 0;}), cls:'var(--r)', manual:{type:'expense',period:dateVal}},
   ];
 
   var h='<div class="rh" style="margin-bottom:14px"><div>';
@@ -3905,9 +3901,9 @@ function buildWeeklyReport(){
       {label:'COLLECTED AMOUNT',   vals:branches.map(function(b){return stats[b].coll;}),    cls:'var(--ok)'},
       {label:'BALANCE',            vals:branches.map(function(b){return stats[b].balance;}), cls:'var(--r)'},
       {label:'ADVANCE',            vals:branches.map(function(b){return stats[b].adv;}),     cls:'var(--gd)'},
-      {label:'CREATED PENALTY',    vals:branches.map(function(b){return stats[b].createdPen;}), cls:'var(--wn)'},
+      {label:'CREATED PENALTY',    vals:branches.map(function(b){return stats[b].createdPen;}), cls:'var(--wn)', manual:{type:'createdpen',period:dateStr}},
       {label:'COLLECTED PENALTY',  vals:branches.map(function(b){return stats[b].collPen;}), cls:'var(--ok)', manual:{type:'collpen',period:dateStr}},
-      {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}),  cls:'var(--wn)'},
+      {label:'CUMULATIVE PENALTY', vals:branches.map(function(b){return stats[b].cumPen;}),  cls:'var(--wn)', manual:{type:'cumpen',period:dateStr}},
       {label:'TOTAL RECOVERY',     vals:branches.map(function(b){return stats[b].recovery;}),cls:'var(--in)'},
       {label:'TOTAL COLLECTED',    vals:branches.map(function(b){return stats[b].totalColl;}),cls:'var(--ok)',bold:true},
       {label:'CUMULATIVE BALANCE', vals:branches.map(function(b){return stats[b].cumBal;}),  cls:'var(--r)',bold:true},
