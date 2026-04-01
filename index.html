@@ -3268,6 +3268,7 @@ function renderDailyPay(mc) {
   // Always reset to today when opening the tab — prevents accidental backdating
   window._dpSelectedDate = today;
   var dow = new Date(today + 'T00:00:00').getDay();
+  var isWeekend = (dow === 0 || dow === 6);
 
   var h = '<div style="background:linear-gradient(135deg,#1a3a5f,#1a5276);color:#fff;border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">';
   h += '<div><div style="font-size:20px;font-weight:800">&#128197; Daily Payments</div>';
