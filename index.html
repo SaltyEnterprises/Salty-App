@@ -3351,7 +3351,8 @@ function buildDPTable(branch) {
   var dateLabel = selectedDate===today ? 'today' : fmtD(selectedDate);
   var h = '<div class="cd"><div class="cdh"><span class="cdt">&#128176; '+esc(branch)+' — '+rows.length+' Active Loans';
   h += ' <span style="font-size:11px;font-weight:400;color:var(--mu)">('+paidCount+' paid '+dateLabel+')</span></span>';
-  h += '<button class="btn btk bts" onclick="saveAllDayPayments(\''+branch+'\')">&#10003; Save All Payments</button></div>';
+  h += '<button class="btn btk bts" onclick="saveAllDayPayments(\''+branch+'\')">&#10003; Save All Payments</button>';
+  h += '<button class="btn bts" style="background:rgba(192,57,43,.15);border-color:var(--r);color:var(--r);" onclick="clearAllDayPayments(\''+branch+'\')">&#10005; Clear All</button></div>';
   h += '<div style="padding:10px 14px">';
   h += '<table style="width:100%;border-collapse:collapse">';
   h += '<thead><tr style="font-size:11px;color:var(--mu);border-bottom:2px solid var(--bd)">';
@@ -3394,10 +3395,38 @@ function buildDPTable(branch) {
     h += '</td></tr>';
   }
   h += '</tbody></table>';
-  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px">';
+  h += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">';
+  h += '<button class="btn btr bts" onclick="clearAllDayPayments(\''+branch+'\')" style="padding:12px 20px;font-size:13px;">&#10005; Clear All Payments</button>';
   h += '<button class="btn btk" onclick="saveAllDayPayments(\''+branch+'\')" style="padding:12px 28px;font-size:14px;font-weight:700">&#10003; Save All Payments for '+esc(branch)+'</button>';
   h += '</div></div></div>';
   el.innerHTML = h;
+}
+
+function clearAllDayPayments(branch){
+  var selectedDate = window._dpSelectedDate || td_();
+  var dateLabel = fmtD(selectedDate);
+  if(!confirm('Clear ALL payments for '+branch+' on '+dateLabel+'?\n\nThis will mark all clients as unpaid for that day.\n\nThis cannot be undone.'))return;
+  var cleared=0;
+  for(var i=0;i<loans.length;i++){
+    var l=loans[i];
+    if(l.status!=='Active')continue;
+    var c=findC(l.clientId);
+    if(!c||c.branch.toLowerCase().trim()!==branch.toLowerCase().trim())continue;
+    if(!l.dayDates)continue;
+    var dayIdx=l.dayDates.indexOf(selectedDate);
+    if(dayIdx<0)continue;
+    if(l.dayPayments&&l.dayPayments[dayIdx]){
+      l.dayPayments[dayIdx]=null;
+      if(l.status==='Completed')l.status='Active';
+      _markDirty('loans',l.id);
+      cleared++;
+    }
+  }
+  if(!cleared){toast('No payments to clear for '+branch+' on '+dateLabel);return;}
+  logAct('act','Cleared ALL payments for '+branch+' on '+dateLabel+' ('+cleared+' clients)');
+  save();
+  toast('✓ Cleared '+cleared+' payments for '+branch+' on '+dateLabel);
+  buildDPTable(branch);
 }
 
 function clearDayPayment(lid, dayIdx, branch){
