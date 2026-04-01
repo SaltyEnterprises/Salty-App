@@ -3348,11 +3348,19 @@ function buildDPTable(branch) {
   }
 
   var paidCount = rows.filter(function(r){return r.alreadyPaid>0;}).length;
+  var unpaidRows = rows.filter(function(r){return r.alreadyPaid===0 && r.dayIdx>=0;});
   var dateLabel = selectedDate===today ? 'today' : fmtD(selectedDate);
   var h = '<div class="cd"><div class="cdh"><span class="cdt">&#128176; '+esc(branch)+' — '+rows.length+' Active Loans';
   h += ' <span style="font-size:11px;font-weight:400;color:var(--mu)">('+paidCount+' paid '+dateLabel+')</span></span>';
   h += '<button class="btn btk bts" onclick="saveAllDayPayments(\''+branch+'\')">&#10003; Save All Payments</button>';
   h += '<button class="btn bts" style="background:rgba(192,57,43,.15);border-color:var(--r);color:var(--r);" onclick="clearAllDayPayments(\''+branch+'\')">&#10005; Clear All</button></div>';
+  // Show unpaid clients warning
+  if(unpaidRows.length>0){
+    h += '<div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:12px;">';
+    h += '<strong style="color:var(--r);">⚠️ '+unpaidRows.length+' client'+(unpaidRows.length>1?'s':'')+' still unpaid for '+dateLabel+':</strong> ';
+    h += unpaidRows.map(function(r){return '<span style="background:rgba(192,57,43,.1);padding:2px 8px;border-radius:4px;margin:2px;">'+esc(findC(r.loan.clientId)?findC(r.loan.clientId).name:'?')+'</span>';}).join(' ');
+    h += '</div>';
+  }
   h += '<div style="padding:10px 14px">';
   h += '<table style="width:100%;border-collapse:collapse">';
   h += '<thead><tr style="font-size:11px;color:var(--mu);border-bottom:2px solid var(--bd)">';
