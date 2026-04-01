@@ -1877,6 +1877,7 @@ function doLogin(){
   var user=USERS[u];
   if(!user||user.pass!==p){document.getElementById('lerr').style.display='block';return;}
   cu={pass:user.pass,display:user.display,role:user.role,region:user.region,branch:user.branch,username:u};
+  try{sessionStorage.setItem('salty_mms_session',JSON.stringify(cu));}catch(e){}
   logAct('in','Signed in');
   document.getElementById('ls').style.display='none';
   var ap=document.getElementById('app');ap.style.display='flex';ap.style.flexDirection='column';
@@ -1890,7 +1891,7 @@ function doLogin(){
   if(nl&&ll)nl.src=ll.src;
   buildNav();buildBranchBar();startRealtimeSync();
 }
-function doLogout(){logAct('out','Signed out');cu=null;document.getElementById('ls').style.display='flex';document.getElementById('app').style.display='none';document.getElementById('lu').value='';document.getElementById('lp').value='';document.getElementById('lerr').style.display='none';}
+function doLogout(){logAct('out','Signed out');try{sessionStorage.removeItem('salty_mms_session');}catch(e){}cu=null;document.getElementById('ls').style.display='flex';document.getElementById('app').style.display='none';document.getElementById('lu').value='';document.getElementById('lp').value='';document.getElementById('lerr').style.display='none';}
 function makeH(id){return function(){showTab(id);};}
 function buildNav(){
   var r=cu.role,tabs=[];
@@ -3660,8 +3661,8 @@ function rptDayStats(branch,dateStr){
     if(paid>0&&dateStr<weekStart)recovery+=Math.min(paid,due);
   }
   var balance=Math.max(0,exp-coll);
-  // totalColl = normal collected + recovery (advance is tracked separately)
-  var totalColl=coll+recovery;
+  // totalColl = ALL money received that day: collected + advance + recovery
+  var totalColl=coll+adv+recovery;
   return{exp:exp,coll:coll,balance:balance,adv:adv,recovery:recovery,
     createdPen:0,collPen:0,disbAmt:disbAmt,totalColl:totalColl};
 }
@@ -6332,7 +6333,9 @@ function confirmDelLoan(id){
       logAct('act','Deleted loan for '+(lc?lc.name:'?')+' — ZMW '+Number(l.amountGiven).toFixed(2));
       save();
       toast('Loan deleted. Disbursement totals updated.');
-      renderLoans(document.getElementById('mainct'),'');
+      // Stay on the loans page after deletion
+      if(window._currentTab==='loans')renderLoans(document.getElementById('mainct'),'');
+      else showTab('loans');
     }
   );
 }
@@ -6568,9 +6571,31 @@ function showDelConfirm(msg, onConfirm){
 // Initialize Firebase immediately on page load
 // Load Firebase then initialize
 window.addEventListener('DOMContentLoaded', function() {
+  // Restore session from sessionStorage if available
+  try{
+    var sess=sessionStorage.getItem('salty_mms_session');
+    if(sess){
+      var s=JSON.parse(sess);
+      if(s&&s.username&&USERS[s.username]&&USERS[s.username].pass===s.pass){
+        cu=s;
+        document.getElementById('ls').style.display='none';
+        var ap=document.getElementById('app');ap.style.display='flex';ap.style.flexDirection='column';
+        document.getElementById('tbrole').textContent=RLABELS[cu.role]||cu.role;
+        var pill=document.getElementById('rpill');
+        pill.textContent=cu.region==='NORTH'?'NORTHERN':cu.region==='SOUTH'?'SOUTHERN':'HEAD OFFICE';
+        pill.style.background=RCOLORS[cu.role]||'#c9a84c';
+        pill.style.color=(cu.role==='officer'||cu.role==='assistant')?'#1a0a0a':'#fff';
+        pill.style.padding='3px 10px';pill.style.fontSize='10px';pill.style.fontWeight='700';
+        var nl=document.getElementById('NL'),ll=document.getElementById('LL');
+        if(nl&&ll)nl.src=ll.src;
+        buildNav();buildBranchBar();
+      }
+    }
+  }catch(e){}
   loadFirebaseScripts(function(loaded) {
     if (loaded) {
       initFirebase();
+      if(cu)startRealtimeSync();
     } else {
       console.error('Firebase SDK not loaded from any CDN');
     }
