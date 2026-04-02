@@ -5979,10 +5979,20 @@ function renderDataManage(mc){
   h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--r)">';
   h+='<div class="cdh" style="background:rgba(192,57,43,.06)"><span class="cdt" style="color:var(--r)">🗑 Delete All Loans & Clients (Start Fresh)</span></div>';
   h+='<div class="cdb">';
-  h+='<div style="font-size:12px;color:var(--mu);margin-bottom:12px;">This will permanently delete ALL clients, loans and payment records for your region. Use this to start fresh. Applications and disbursements are kept.</div>';
+  h+='<div style="font-size:12px;color:var(--mu);margin-bottom:12px;">Delete by branch or entire region. Disbursements are reset to pending so clients can be re-disbursed correctly.</div>';
+  h+='<div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:6px;">By Branch:</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">';
+  var allBr=NORTH.concat(SOUTH);
+  for(var bi=0;bi<allBr.length;bi++){
+    var hasBrLoans=false;
+    for(var li=0;li<clients.length;li++){if(clients[li].branch===allBr[bi]){hasBrLoans=true;break;}}
+    if(hasBrLoans)h+='<button class="btn btd bts" onclick="deleteAllLoansForBranch(\''+allBr[bi]+'\')">🗑 '+allBr[bi]+'</button>';
+  }
+  h+='</div>';
+  h+='<div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:6px;">By Region:</div>';
   h+='<div style="display:flex;gap:10px;flex-wrap:wrap;">';
-  if(canDo('credit_north'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'NORTH\')">🗑 Delete All NORTH Region Loans</button>';
-  if(canDo('credit_south'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'SOUTH\')">🗑 Delete All SOUTH Region Loans</button>';
+  if(canDo('credit_north'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'NORTH\')">🗑 Delete All NORTH Region</button>';
+  if(canDo('credit_south'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'SOUTH\')">🗑 Delete All SOUTH Region</button>';
   if(canDo('admin'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'ALL\')">🗑 Delete ALL Loans (All Regions)</button>';
   h+='</div></div></div>';
 
@@ -6247,38 +6257,82 @@ function cleanupDuplicates(){
   renderDataManage(document.getElementById('mainct'));
 }
 
+function deleteAllLoansForBranch(branch){
+  if(!confirm('DELETE ALL loans and clients for '+branch+'?\n\nThis cannot be undone.'))return;
+  if(!confirm('FINAL CONFIRM — delete all '+branch+' loans?'))return;
+  _deleteLoansByBranches([branch]);
+}
+
 function deleteAllLoansForRegion(region){
   var regionLabel=region==='ALL'?'ALL regions':region+' region';
   if(!confirm('DELETE ALL clients, loans and payments for '+regionLabel+'?\n\nThis cannot be undone. Applications and disbursements are kept.'))return;
   if(!confirm('FINAL WARNING — confirm delete all loans for '+regionLabel+'?'))return;
   var branchList=region==='NORTH'?NORTH:region==='SOUTH'?SOUTH:NORTH.concat(SOUTH);
-  var delClients=0,delLoans=0;
-  // Delete loans
-  var loansToKeep=[];
+  _deleteLoansByBranches(branchList);
+}
+
+function _deleteLoansByBranches(branchList){
+  var delClients=0,delLoans=0,delPayments=0;
+
+  // Delete payments from Firebase subcollection
+  var paymentIdsToDelete=[];
+  for(var i=0;i<payments.length;i++){
+    var pl=findL(payments[i].loanId);
+    var pc=pl?findC(pl.clientId):null;
+    if(pc&&branchList.indexOf(pc.branch)>=0){
+      paymentIdsToDelete.push(payments[i].id||payments[i].loanId);
+      if(_fbReady&&_db)_db.collection('salty').doc('payments').collection('p').doc(String(payments[i].id||i)).delete().catch(function(){});
+      delPayments++;
+    }
+  }
+  payments=payments.filter(function(p){
+    var pl=findL(p.loanId);
+    var pc=pl?findC(pl.clientId):null;
+    return !(pc&&branchList.indexOf(pc.branch)>=0);
+  });
+
+  // Delete loans from Firebase
   for(var i=0;i<loans.length;i++){
     var lc=findC(loans[i].clientId);
     if(lc&&branchList.indexOf(lc.branch)>=0){
       delLoans++;
       if(_fbReady&&_db)_db.collection('salty').doc('loans').collection('l').doc(loans[i].id).delete().catch(function(){});
-    } else loansToKeep.push(loans[i]);
+    }
   }
-  loans=loansToKeep;
-  // Delete clients
-  var clientsToKeep=[];
+  loans=loans.filter(function(l){
+    var lc=findC(l.clientId);
+    return !(lc&&branchList.indexOf(lc.branch)>=0);
+  });
+
+  // Delete clients from Firebase
   for(var i=0;i<clients.length;i++){
     if(branchList.indexOf(clients[i].branch)>=0){
       delClients++;
       if(_fbReady&&_db)_db.collection('salty').doc('clients').collection('c').doc(clients[i].id).delete().catch(function(){});
-    } else clientsToKeep.push(clients[i]);
+    }
   }
-  clients=clientsToKeep;
-  // Delete payments
-  payments=payments.filter(function(p){
-    var l=findL(p.loanId);return l!=null;
-  });
-  logAct('act','DELETED ALL loans and clients for '+regionLabel+' — '+delLoans+' loans, '+delClients+' clients');
+  clients=clients.filter(function(c){return branchList.indexOf(c.branch)<0;});
+
+  // Also reset disbursement status so clients can be re-disbursed
+  for(var i=0;i<disbursements.length;i++){
+    var db=disbursements[i];
+    if(branchList.indexOf(db.branch)>=0){
+      db.status='pending';
+      delete db.approvedBy;delete db.approvedAt;delete db.series;
+      for(var j=0;j<(db.clients||[]).length;j++){
+        var appId=db.clients[j].appId;
+        for(var k=0;k<applications.length;k++){
+          if(applications[k].id===appId&&applications[k].status==='disbursed'){
+            applications[k].status='approved';
+          }
+        }
+      }
+    }
+  }
+
+  logAct('act','DELETED loans/clients for ['+branchList.join(',')+'] — '+delLoans+' loans, '+delClients+' clients, '+delPayments+' payments');
   save();
-  toast('✓ Deleted '+delLoans+' loans and '+delClients+' clients for '+regionLabel+'. Ready to start fresh.');
+  toast('✓ Deleted '+delLoans+' loans, '+delClients+' clients for ['+branchList.join(', ')+']. Ready to re-disburse.');
   renderDataManage(document.getElementById('mainct'));
 }
 
