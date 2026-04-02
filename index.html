@@ -2105,7 +2105,37 @@ function renderDashboard(mc){
   h+='</div><div class="cd"><div class="cdh"><span class="cdt">Recent Activity</span></div><div class="cdb">';
   if(!actLog.length){h+='<div class="es" style="padding:14px"><div class="et">No activity yet</div></div>';}
   for(var i=0;i<Math.min(8,actLog.length);i++){var l=actLog[i];h+='<div class="logrow"><div class="logdot '+l.type+'"></div><div><div style="font-weight:500">'+esc(l.msg)+'</div><div style="font-size:10px;color:var(--mu)">'+esc(l.user)+' &#183; '+fmtDT(l.time)+'</div></div></div>';}
-  h+='</div></div>';mc.innerHTML=h;
+  h+='</div></div>';
+
+  // ── ALWAYS-VISIBLE WEEKLY SUMMARY ──
+  if(canDo('admin','credit_north','credit_south')){
+    var wToday=td_();
+    var wMonday=getMondayOf(wToday);
+    var wBranches=rptBranches();
+    var wTotExp=0,wTotColl=0,wTotAdv=0,wTotRec=0;
+    var wDates=weekDates(wMonday);
+    for(var wbi=0;wbi<wBranches.length;wbi++){
+      var wb=wBranches[wbi];
+      var wColl=rptCollected(wb,wMonday,wToday);
+      wTotColl+=wColl.coll;wTotAdv+=wColl.adv;wTotRec+=wColl.recovery;
+      for(var wdi=0;wdi<wDates.length;wdi++){if(wDates[wdi]<=wToday){var ws=rptDayStats(wb,wDates[wdi]);wTotExp+=ws.exp;}}
+    }
+    var wTotTotal=wTotColl+wTotAdv+wTotRec;
+    var wPct=wTotExp>0?Math.min(100,Math.round(wTotTotal/wTotExp*100)):0;
+    h+='<div class="cd" style="border-left:4px solid var(--r2);margin-top:0">';
+    h+='<div class="cdh"><span class="cdt">📊 This Week\'s Summary — Week of '+fmtD(wMonday)+'</span>';
+    h+='<button class="btn bts" style="font-size:11px" onclick="showTab(\'reports\')">View Full Report →</button></div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:12px 14px;">';
+    h+='<div style="background:var(--s2);border-radius:8px;padding:10px 14px;border-top:3px solid var(--mu)"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;margin-bottom:4px;">Expected</div><div style="font-family:monospace;font-weight:700;font-size:14px;">'+zmw(wTotExp)+'</div></div>';
+    h+='<div style="background:var(--s2);border-radius:8px;padding:10px 14px;border-top:3px solid var(--ok)"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;margin-bottom:4px;">Collected</div><div style="font-family:monospace;font-weight:700;font-size:14px;color:var(--ok);">'+zmw(wTotColl)+'</div></div>';
+    h+='<div style="background:var(--s2);border-radius:8px;padding:10px 14px;border-top:3px solid var(--gd)"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;margin-bottom:4px;">Advance</div><div style="font-family:monospace;font-weight:700;font-size:14px;color:var(--gd);">'+zmw(wTotAdv)+'</div></div>';
+    h+='<div style="background:var(--s2);border-radius:8px;padding:10px 14px;border-top:3px solid var(--in)"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;margin-bottom:4px;">Recovery</div><div style="font-family:monospace;font-weight:700;font-size:14px;color:var(--in);">'+zmw(wTotRec)+'</div></div>';
+    h+='<div style="background:var(--s2);border-radius:8px;padding:10px 14px;border-top:3px solid var(--r2)"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;margin-bottom:4px;">Total Collected</div><div style="font-family:monospace;font-weight:800;font-size:16px;color:var(--r2);">'+zmw(wTotTotal)+'</div></div>';
+    h+='<div style="background:var(--s2);border-radius:8px;padding:10px 14px;border-top:3px solid var(--r)"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;margin-bottom:4px;">Collection Rate</div><div style="font-family:monospace;font-weight:800;font-size:16px;color:'+(wPct>=90?'var(--ok)':wPct>=70?'var(--gd)':'var(--r)')+';">'+wPct+'%</div></div>';
+    h+='</div></div>';
+  }
+
+  mc.innerHTML=h;
 }
 function renderApplications(mc){
   var myApps=[];
@@ -3557,13 +3587,17 @@ function handleDailyCSV(input) {
     var prev = document.getElementById('dp-csv-prev');
     if(prev) {
       var ph='<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px">';
-      ph+='<div style="font-weight:700;color:var(--ok);margin-bottom:8px">&#10003; '+matched+' payment'+(matched!==1?'s':'')+' recorded from CSV for '+dateLabel+'</div>';
+      var csvTotal=results.reduce(function(s,r){return s+r.amt;},0);
+      ph+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">';
+      ph+='<div style="font-weight:700;color:var(--ok);">&#10003; '+matched+' payment'+(matched!==1?'s':'')+' recorded for '+dateLabel+'</div>';
+      ph+='<div style="font-family:monospace;font-size:18px;font-weight:800;color:var(--ok);">TOTAL: '+zmw(csvTotal)+'</div></div>';
+      if(notFound.length)ph+='<div style="background:rgba(192,57,43,.1);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:var(--r);">&#9888; '+notFound.length+' client'+(notFound.length>1?'s':'')+' NOT FOUND in system: '+notFound.map(function(n){return esc(n);}).join(', ')+'</div>';
       if(results.length) {
         ph+='<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:3px 6px;color:var(--mu)">Client</th><th style="text-align:left;padding:3px 6px;color:var(--mu)">Code</th><th style="text-align:right;padding:3px 6px;color:var(--mu)">Amount</th></tr></thead><tbody>';
         for(var i=0;i<results.length;i++) ph+='<tr><td style="padding:3px 6px">'+esc(results[i].name)+'</td><td style="padding:3px 6px;font-family:monospace">'+esc(results[i].code)+'</td><td style="padding:3px 6px;text-align:right;font-family:monospace">'+zmw(results[i].amt)+'</td></tr>';
         ph+='</tbody></table>';
       }
-      if(notFound.length) ph+='<div style="color:var(--r);font-size:11px;margin-top:8px">&#9888; Not found: '+notFound.map(function(n){return esc(n);}).join(', ')+'</div>';
+
       ph+='</div>';
       prev.innerHTML=ph; prev.style.display='block';
     }
@@ -3580,24 +3614,35 @@ function renderCollateral(mc){var list=fBr(clients).filter(function(c){return c.
 // ── REPORTS ────────────────────────────────────────────────────────────────
 
 function renderReports(mc){
+  var lastTab=window._lastRptTab||'weekly';
   mc.innerHTML='<div class="rt">'
-    +'<button class="rtb ac" onclick="swRep(\'daily\',this)">Daily</button>'
-    +'<button class="rtb" onclick="swRep(\'weekly\',this)">Weekly</button>'
-    +'<button class="rtb" onclick="swRep(\'monthly\',this)">Monthly</button>'
-    +'<button class="rtb" onclick="swRep(\'quarterly\',this)">Quarterly</button>'
+    +'<button class="rtb'+(lastTab==='daily'?' ac':'')+'" onclick="swRep(\'daily\',this)">Daily</button>'
+    +'<button class="rtb'+(lastTab==='weekly'?' ac':'')+'" onclick="swRep(\'weekly\',this)">Weekly</button>'
+    +'<button class="rtb'+(lastTab==='monthly'?' ac':'')+'" onclick="swRep(\'monthly\',this)">Monthly</button>'
+    +'<button class="rtb'+(lastTab==='quarterly'?' ac':'')+'" onclick="swRep(\'quarterly\',this)">Quarterly</button>'
+    +'<button class="rtb'+(lastTab==='annual'?' ac':'')+'" onclick="swRep(\'annual\',this)">Annual</button>'
+    +'<button class="rtb'+(lastTab==='import'?' ac':'')+'" style="border-color:var(--in);color:var(--in)" onclick="swRep(\'import\',this)">&#128196; Import</button>'
     +'<button class="rtb" style="border:1.5px solid var(--wn);color:var(--wn)" onclick="swRep(\'lapsed\',this)">Did Not Renew</button>'
     +'</div><div id="rcont"></div>';
-  buildDailyReport();
+  if(lastTab==='daily')buildDailyReport();
+  else if(lastTab==='monthly')buildMonthlyReport();
+  else if(lastTab==='quarterly')buildQuarterlyReport();
+  else if(lastTab==='annual')buildAnnualReport();
+  else if(lastTab==='import')buildImportTool();
+  else buildWeeklyReport();
 }
 
 function swRep(type,btn){
   var bs=document.querySelectorAll('.rtb');
   for(var i=0;i<bs.length;i++)bs[i].classList.remove('ac');
   btn.classList.add('ac');
+  window._lastRptTab=type;
   if(type==='daily')buildDailyReport();
   else if(type==='weekly')buildWeeklyReport();
   else if(type==='monthly')buildMonthlyReport();
   else if(type==='quarterly')buildQuarterlyReport();
+  else if(type==='annual')buildAnnualReport();
+  else if(type==='import')buildImportTool();
   else buildLapsedReport();
 }
 
@@ -4277,6 +4322,376 @@ function buildQuarterlyReport(){
   document.getElementById('rcont').innerHTML=h;
 }
 
+// ── REPORT IMPORT TOOL ─────────────────────────────────────────────────────
+function buildImportTool(){
+  var branches=rptBranches();
+  var today=td_();
+
+  var h='<div class="rh" style="margin-bottom:14px"><div>';
+  h+='<div class="rht">&#128196; Report Import Tool</div>';
+  h+='<div class="rhs">Upload CSV or paste from Excel — review before committing</div></div></div>';
+
+  // Period selector
+  h+='<div class="cd" style="margin-bottom:14px">';
+  h+='<div class="cdh"><span class="cdt">Step 1 — Select Report Period & Type</span></div>';
+  h+='<div style="padding:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">';
+  h+='<div><label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Report Type</label>';
+  h+='<select id="imp-type" class="fsel" style="min-width:160px;" onchange="impUpdatePeriod()">';
+  h+='<option value="daily">Daily</option>';
+  h+='<option value="weekly" selected>Weekly</option>';
+  h+='<option value="monthly">Monthly</option>';
+  h+='<option value="quarterly">Quarterly</option>';
+  h+='<option value="annual">Annual</option>';
+  h+='</select></div>';
+  h+='<div id="imp-period-wrap"><label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Week (Monday)</label>';
+  h+='<input type="date" id="imp-period" value="'+getMondayOf(today)+'" class="fi" style="max-width:180px;"></div>';
+  h+='</div></div>';
+
+  // Data entry — paste or upload
+  h+='<div class="cd" style="margin-bottom:14px">';
+  h+='<div class="cdh"><span class="cdt">Step 2 — Paste from Excel or Upload CSV</span></div>';
+  h+='<div style="padding:14px">';
+
+  // Format guide
+  h+='<div style="background:rgba(41,128,185,.07);border:1px solid rgba(41,128,185,.2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;">';
+  h+='<strong style="color:var(--in);">Expected Format (Excel columns):</strong><br>';
+  h+='<code style="font-size:11px;background:rgba(0,0,0,.1);padding:3px 8px;border-radius:4px;display:inline-block;margin-top:6px;">Branch | Expected | Collected | Advance | Recovery | Total Collected | Balance | Created Penalty | Collected Penalty | Cumulative Penalty | Foam Money | Expense</code>';
+  h+='<br><span style="color:var(--mu);font-size:11px;margin-top:6px;display:block;">Copy those columns from Excel and paste below. Or upload a CSV file with the same headers.</span></div>';
+
+  // Paste area
+  h+='<div style="margin-bottom:12px">';
+  h+='<label style="font-size:11px;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px;">Paste from Excel (Ctrl+V)</label>';
+  h+='<textarea id="imp-paste" rows="8" style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1.5px solid var(--bd);border-radius:8px;background:var(--s2);color:var(--tx);resize:vertical;" placeholder="Paste Excel data here (tab-separated rows)..."></textarea>';
+  h+='</div>';
+
+  // Or upload CSV
+  h+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+  h+='<button class="btn btk bts" onclick="impParsePaste()">&#128270; Parse Pasted Data</button>';
+  h+='<span style="color:var(--mu);font-size:12px;">— or —</span>';
+  h+='<label class="btn bts" style="cursor:pointer;background:rgba(52,152,219,.1);border-color:var(--in);color:var(--in);">&#128196; Upload CSV <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="impParseFile(this)"></label>';
+  h+='<button class="btn bts" style="background:rgba(201,168,76,.1);border-color:var(--gd);color:var(--gd);" onclick="impLoadTemplate()">&#8659; Load Template</button>';
+  h+='</div>';
+  h+='</div></div>';
+
+  // Staging table (populated after parse)
+  h+='<div id="imp-staging"></div>';
+
+  document.getElementById('rcont').innerHTML=h;
+}
+
+function impUpdatePeriod(){
+  var type=document.getElementById('imp-type').value;
+  var wrap=document.getElementById('imp-period-wrap');
+  var today=td_();
+  if(type==='daily'){
+    wrap.innerHTML='<label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Date</label><input type="date" id="imp-period" value="'+today+'" class="fi" style="max-width:180px;">';
+  } else if(type==='weekly'){
+    wrap.innerHTML='<label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Week (Monday)</label><input type="date" id="imp-period" value="'+getMondayOf(today)+'" class="fi" style="max-width:180px;">';
+  } else if(type==='monthly'){
+    var ym=today.substring(0,7);
+    wrap.innerHTML='<label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Month</label><input type="month" id="imp-period" value="'+ym+'" class="fi" style="max-width:180px;">';
+  } else if(type==='quarterly'){
+    wrap.innerHTML='<label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Quarter (e.g. 2026-Q1)</label><input type="text" id="imp-period" value="'+today.substring(0,4)+'-Q'+Math.ceil((new Date(today).getMonth()+1)/3)+'" class="fi" style="max-width:180px;" placeholder="2026-Q1">';
+  } else if(type==='annual'){
+    wrap.innerHTML='<label style="font-size:11px;color:var(--mu);display:block;margin-bottom:5px;text-transform:uppercase;">Year</label><input type="number" id="imp-period" value="'+today.substring(0,4)+'" class="fi" style="max-width:120px;" min="2020" max="2035">';
+  }
+}
+
+function impLoadTemplate(){
+  var branches=rptBranches();
+  var header='Branch\tExpected\tCollected\tAdvance\tRecovery\tTotal Collected\tBalance\tCreated Penalty\tCollected Penalty\tCumulative Penalty\tFoam Money\tExpense';
+  var rows=branches.map(function(b){return b+'\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0';});
+  document.getElementById('imp-paste').value=header+'\n'+rows.join('\n');
+  var ta=document.getElementById('imp-paste');
+  ta.style.borderColor='var(--in)';
+  toast('Template loaded — fill in the values and click Parse');
+}
+
+function impParseFile(input){
+  var file=input.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    document.getElementById('imp-paste').value=ev.target.result;
+    impParsePaste();
+  };
+  reader.readAsText(file);
+}
+
+function impParsePaste(){
+  var raw=document.getElementById('imp-paste').value.trim();
+  if(!raw){toast('Please paste data or upload a file first.');return;}
+  var type=document.getElementById('imp-type').value;
+  var period=document.getElementById('imp-period').value;
+  if(!period){toast('Please select a period.');return;}
+
+  // Parse tab or comma separated
+  var lines=raw.split('\n').filter(function(l){return l.trim();});
+  if(lines.length<2){toast('Need at least a header row and one data row.');return;}
+
+  // Detect separator
+  var sep=lines[0].indexOf('\t')>=0?'\t':',';
+  var headers=lines[0].split(sep).map(function(h){return h.trim().toLowerCase().replace(/[^a-z0-9]/g,'');});
+
+  // Field mapping
+  var fieldMap={
+    branch:['branch','br'],
+    exp:['expected','expectedamount','exp'],
+    coll:['collected','collectedamount','coll'],
+    adv:['advance','adv'],
+    recovery:['recovery','totalrecovery','rec'],
+    totalcoll:['totalcollected','total','totcoll'],
+    balance:['balance','bal'],
+    createdpen:['createdpenalty','createdpen','created'],
+    collpen:['collectedpenalty','collpen','collectedpen'],
+    cumpen:['cumulativepenalty','cumpen','cumulative'],
+    foam:['foammoney','foam','foamoney'],
+    expense:['expense','expenses','exp2']
+  };
+
+  function findCol(key){
+    var aliases=fieldMap[key];
+    for(var i=0;i<headers.length;i++){
+      for(var j=0;j<aliases.length;j++){
+        if(headers[i]===aliases[j]||headers[i].indexOf(aliases[j])>=0)return i;
+      }
+    }
+    return -1;
+  }
+
+  var colIdx={};
+  for(var k in fieldMap)colIdx[k]=findCol(k);
+  var branchCol=colIdx['branch'];
+
+  // Parse data rows into staging object
+  var staged=[];
+  for(var li=1;li<lines.length;li++){
+    var cols=lines[li].split(sep).map(function(v){return v.trim().replace(/[",]/g,'');});
+    if(cols.length<2)continue;
+    var branchName=branchCol>=0?(cols[branchCol]||'').trim():'Branch '+(li);
+    var row={branch:branchName,period:period,type:type};
+    for(var k in fieldMap){
+      if(k==='branch')continue;
+      var ci=colIdx[k];
+      row[k]=ci>=0?(parseFloat(cols[ci])||0):0;
+    }
+    // Auto-compute totalcoll if missing
+    if(!row.totalcoll&&(row.coll||row.adv||row.recovery)){
+      row.totalcoll=row.coll+row.adv+row.recovery;
+    }
+    // Auto-compute balance if missing
+    if(!row.balance&&row.exp&&row.coll){
+      row.balance=Math.max(0,row.exp-row.coll);
+    }
+    staged.push(row);
+  }
+
+  if(!staged.length){toast('No data rows found. Check format.');return;}
+
+  // Show staging table for review/edit
+  impShowStaging(staged,type,period);
+}
+
+function impShowStaging(staged,type,period){
+  var fields=[
+    {k:'exp',label:'Expected'},
+    {k:'coll',label:'Collected'},
+    {k:'adv',label:'Advance'},
+    {k:'recovery',label:'Recovery'},
+    {k:'totalcoll',label:'Total Collected'},
+    {k:'balance',label:'Balance'},
+    {k:'createdpen',label:'Created Penalty'},
+    {k:'collpen',label:'Coll. Penalty'},
+    {k:'cumpen',label:'Cum. Penalty'},
+    {k:'foam',label:'Foam Money'},
+    {k:'expense',label:'Expense'},
+  ];
+
+  var periodLabel=type==='daily'?fmtD(period):type==='weekly'?'Week of '+fmtD(period):type==='monthly'?period:period;
+
+  var h='<div class="cd" style="border-left:4px solid var(--in)">';
+  h+='<div class="cdh"><span class="cdt" style="color:var(--in);">Step 3 — Review & Edit Before Committing</span>';
+  h+='<span style="font-size:11px;color:var(--mu);">'+type.charAt(0).toUpperCase()+type.slice(1)+' | '+periodLabel+'</span></div>';
+
+  h+='<div style="overflow-x:auto;padding:14px">';
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+  h+='<thead><tr style="background:rgba(139,90,43,.08)">';
+  h+='<th style="padding:8px;text-align:left;font-size:10px;text-transform:uppercase;">Branch</th>';
+  fields.forEach(function(f){h+='<th style="padding:8px;text-align:right;font-size:10px;text-transform:uppercase;">'+f.label+'</th>';});
+  h+='</tr></thead><tbody>';
+
+  var totals={};fields.forEach(function(f){totals[f.k]=0;});
+
+  staged.forEach(function(row,ri){
+    h+='<tr style="border-bottom:1px solid var(--bd);'+(ri%2===0?'background:rgba(0,0,0,.02)':'')+'">';
+    h+='<td style="padding:8px;font-weight:700;">'+esc(row.branch)+'</td>';
+    fields.forEach(function(f){
+      totals[f.k]+=row[f.k]||0;
+      h+='<td style="padding:4px 8px;">';
+      h+='<input type="number" step="0.01" min="0" value="'+(row[f.k]||0)+'" ';
+      h+='data-ri="'+ri+'" data-field="'+f.k+'" ';
+      h+='style="width:90px;font-family:monospace;font-size:11px;padding:3px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--s2);color:var(--tx);text-align:right;" ';
+      h+='onchange="impUpdateCell(this,'+ri+',\''+f.k+'\')" onclick="this.select()">';
+      h+='</td>';
+    });
+    h+='</tr>';
+  });
+
+  // Totals row
+  h+='<tr style="background:rgba(139,90,43,.08);font-weight:700;border-top:2px solid var(--r2)">';
+  h+='<td style="padding:8px;color:var(--r2);">TOTAL</td>';
+  fields.forEach(function(f){
+    h+='<td id="imp-tot-'+f.k+'" style="padding:8px;text-align:right;font-family:monospace;font-size:11px;">'+zmw(totals[f.k])+'</td>';
+  });
+  h+='</tr>';
+  h+='</tbody></table></div>';
+
+  h+='<div style="padding:0 14px 14px;display:flex;gap:10px;flex-wrap:wrap;">';
+  h+='<button class="btn btk" style="padding:10px 24px;font-weight:700;" onclick="impCommit()">&#10003; Commit to System</button>';
+  h+='<button class="btn bto" onclick="buildImportTool()">&#8592; Back</button>';
+  h+='<div style="font-size:11px;color:var(--mu);align-self:center;">Review all values above. You can edit any cell before committing.</div>';
+  h+='</div></div>';
+
+  document.getElementById('imp-staging').innerHTML=h;
+
+  // Store staged data globally for commit
+  window._impStaged=staged;
+  window._impType=type;
+  window._impPeriod=period;
+}
+
+function impUpdateCell(input,ri,field){
+  var val=parseFloat(input.value)||0;
+  window._impStaged[ri][field]=val;
+  // Recalculate totals row
+  var fields=['exp','coll','adv','recovery','totalcoll','balance','createdpen','collpen','cumpen','foam','expense'];
+  fields.forEach(function(f){
+    var tot=0;
+    window._impStaged.forEach(function(r){tot+=r[f]||0;});
+    var el=document.getElementById('imp-tot-'+f);
+    if(el)el.textContent=zmw(tot);
+  });
+  // Auto-recalculate totalcoll for this row
+  if(field==='coll'||field==='adv'||field==='recovery'){
+    var row=window._impStaged[ri];
+    row.totalcoll=(row.coll||0)+(row.adv||0)+(row.recovery||0);
+    var inputs=document.querySelectorAll('[data-ri="'+ri+'"][data-field="totalcoll"]');
+    inputs.forEach(function(inp){inp.value=row.totalcoll.toFixed(2);});
+  }
+}
+
+function impCommit(){
+  var staged=window._impStaged;
+  var type=window._impType;
+  var period=window._impPeriod;
+  if(!staged||!staged.length){toast('Nothing to commit.');return;}
+
+  if(!confirm('Commit '+staged.length+' rows of '+type+' report data for period "'+period+'"?\n\nThis will save all values to the system as manual entries.'))return;
+
+  var fieldTypes={
+    exp:'exp',coll:'coll',adv:'adv',recovery:'recovery',totalcoll:'totalcoll',
+    balance:'balance',createdpen:'createdpen',collpen:'collpen',
+    cumpen:'cumpen',foam:'foam',expense:'expense'
+  };
+
+  var saved=0;
+  staged.forEach(function(row){
+    var b=row.branch;
+    var p=row.period;
+    for(var k in fieldTypes){
+      if(row[k]){
+        manualEntries[meKey(fieldTypes[k],b,p)]=row[k];
+        saved++;
+      }
+    }
+  });
+
+  save();
+  logAct('act','Report import committed: '+type+' period '+period+' — '+staged.length+' branches, '+saved+' values');
+  toast('✓ Committed! '+staged.length+' branches saved for '+type+' period '+period+'. View in '+type+' report.');
+
+  // Navigate to the relevant report
+  window._lastRptTab=type;
+  var btn=document.querySelector('.rtb.ac');
+  document.querySelectorAll('.rtb').forEach(function(b){b.classList.remove('ac');});
+  // Rebuild reports with correct tab
+  renderReports(document.getElementById('mainct'));
+}
+
+// ── ANNUAL REPORT ──────────────────────────────────────────────────────────
+function buildAnnualReport(){
+  var today=td_();
+  var yrSel=document.getElementById('rpt-yr-inp')?parseInt(document.getElementById('rpt-yr-inp').value):new Date().getFullYear();
+  var branches=rptBranches();
+  var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  var h='<div class="rh" style="margin-bottom:14px"><div>';
+  h+='<div class="rht">Annual Report</div>';
+  h+='<div class="rhs">Year '+yrSel+'</div></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<label style="color:rgba(255,255,255,.8);font-size:11px;">Year:</label>';
+  h+='<select id="rpt-yr-inp" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(36,12,0,.8);color:#fff;font-size:12px" onchange="buildAnnualReport()">';
+  var curYr=new Date().getFullYear();
+  for(var y=curYr;y>=curYr-3;y--)h+='<option value="'+y+'"'+(y===yrSel?' selected':'')+'>'+y+'</option>';
+  h+='</select>';
+  h+='<button class="btn bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">&#128424; Print</button>';
+  h+='</div></div>';
+
+  var annTotals={};
+  for(var bi=0;bi<branches.length;bi++)annTotals[branches[bi]]={disp:0,coll:0,adv:0,recovery:0,totalColl:0,balance:0,exp:0};
+
+  for(var mi=0;mi<12;mi++){
+    var mFrom=yrSel+'-'+pad(mi+1)+'-01';
+    var mEnd=new Date(yrSel,mi+1,0);
+    var mTo=yrSel+'-'+pad(mi+1)+'-'+pad(mEnd.getDate());
+    if(mFrom>today)continue;
+
+    var mStats={};
+    for(var bi=0;bi<branches.length;bi++){
+      var b=branches[bi];
+      var mColl=rptCollected(b,mFrom,mTo);
+      var mDisp=0,mExp=0;
+      for(var i=0;i<loans.length;i++){
+        var lc2=findC(loans[i].clientId);
+        if(!lc2||lc2.branch!==b)continue;
+        if(loans[i].dateGiven>=mFrom&&loans[i].dateGiven<=mTo)mDisp+=loans[i].amountGiven||0;
+        if(!loans[i].dayDates)continue;
+        for(var d=0;d<loans[i].dayDates.length;d++){
+          if(loans[i].dayDates[d]>=mFrom&&loans[i].dayDates[d]<=mTo)mExp+=loans[i].dailyPayment||0;
+        }
+      }
+      mStats[b]={disp:mDisp,exp:mExp,coll:mColl.coll,adv:mColl.adv,recovery:mColl.recovery,totalColl:mColl.total,balance:Math.max(0,mExp-mColl.coll)};
+      var at=annTotals[b];
+      at.disp+=mDisp;at.exp+=mExp;at.coll+=mColl.coll;at.adv+=mColl.adv;at.recovery+=mColl.recovery;at.totalColl+=mColl.total;at.balance+=Math.max(0,mExp-mColl.coll);
+    }
+
+    var mRows=[
+      {label:'COLLECTED AMOUNT',vals:branches.map(function(b){return mStats[b].coll;}),cls:'var(--ok)'},
+      {label:'ADVANCE',vals:branches.map(function(b){return mStats[b].adv;}),cls:'var(--gd)'},
+      {label:'TOTAL RECOVERY',vals:branches.map(function(b){return mStats[b].recovery;}),cls:'var(--in)'},
+      {label:'TOTAL COLLECTED',vals:branches.map(function(b){return mStats[b].totalColl;}),cls:'var(--ok)',bold:true},
+      {label:'BALANCE',vals:branches.map(function(b){return mStats[b].balance;}),cls:'var(--r)'},
+    ];
+    h+='<div class="cd" style="margin-bottom:10px">';
+    h+='<div class="cdh"><span class="cdt">'+months[mi]+' '+yrSel+'</span></div>';
+    h+=rptTable(branches,mRows);
+    h+='</div>';
+  }
+
+  // Annual total
+  var annRows=[
+    {label:'TOTAL COLLECTED',vals:branches.map(function(b){return annTotals[b].totalColl;}),cls:'var(--ok)',bold:true},
+    {label:'ADVANCE',vals:branches.map(function(b){return annTotals[b].adv;}),cls:'var(--gd)'},
+    {label:'TOTAL RECOVERY',vals:branches.map(function(b){return annTotals[b].recovery;}),cls:'var(--in)'},
+    {label:'BALANCE',vals:branches.map(function(b){return annTotals[b].balance;}),cls:'var(--r)',bold:true},
+    {label:'FOAM MONEY',vals:branches.map(function(){return 0;}),cls:'',manual:{type:'foam',period:String(yrSel)}},
+    {label:'EXPENSES',vals:branches.map(function(){return 0;}),cls:'var(--r)',manual:{type:'expense',period:String(yrSel)}},
+  ];
+  h+='<div class="cd" style="border:2px solid var(--r2)">';
+  h+='<div class="cdh" style="background:linear-gradient(135deg,#4a1f00,var(--r))"><span class="cdt" style="color:#fff">ANNUAL TOTAL — '+yrSel+'</span></div>';
+  h+=rptTable(branches,annRows);
+  h+='</div>';
+  document.getElementById('rcont').innerHTML=h;
+}
 
 // ===== LONG TERM LOANS MODULE =====
 var LT_TIERS = [
