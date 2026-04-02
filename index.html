@@ -3398,8 +3398,9 @@ function buildDPTable(branch) {
   h += '<th style="text-align:left;padding:8px 6px">Code</th>';
   h += '<th style="text-align:right;padding:8px 6px">Daily Due</th>';
   h += '<th style="text-align:right;padding:8px 6px">Balance</th>';
+  h += '<th style="text-align:right;padding:8px 6px;color:var(--gd)">Advance</th>';
   h += '<th style="text-align:center;padding:8px 6px">Day</th>';
-  h += '<th style="text-align:right;padding:8px 6px;min-width:130px">Amount Paid Today</th>';
+  h += '<th style="text-align:right;padding:8px 6px;min-width:130px">Cash Received</th>';
   h += '<th style="text-align:center;padding:8px 6px">Status</th>';
   h += '</tr></thead><tbody>';
 
@@ -3413,7 +3414,9 @@ function buildDPTable(branch) {
     h += '<td style="padding:8px 6px;font-weight:600;font-size:13px">'+esc(c.name)+'</td>';
     h += '<td style="padding:8px 6px;font-family:monospace;font-size:11px;color:var(--mu)">'+esc(c.code||'—')+'</td>';
     h += '<td style="padding:8px 6px;text-align:right;font-family:monospace;font-size:12px">'+zmw(l.dailyPayment)+'</td>';
+    var advBal = l.advanceBalance || 0;
     h += '<td style="padding:8px 6px;text-align:right;font-family:monospace;font-size:12px;color:var(--r)">'+zmw(stats.balance)+'</td>';
+    h += '<td style="padding:8px 6px;text-align:right;font-family:monospace;font-size:12px;color:'+(advBal>0?'var(--gd)':'var(--mu)')+';">'+(advBal>0?zmw(advBal):'—')+'</td>';
     h += '<td style="padding:8px 6px;text-align:center;font-size:11px;color:var(--mu)">'+dayNum+'</td>';
     h += '<td style="padding:8px 6px;text-align:right">';
     h += '<input type="number" step="0.01" min="0" data-lid="'+l.id+'" data-dayidx="'+r.dayIdx+'" ';
@@ -3499,15 +3502,43 @@ function saveAllDayPayments(branch) {
     var inp = inputs[i];
     var lid = inp.dataset.lid;
     var dayIdx = parseInt(inp.dataset.dayidx);
-    var amt = parseFloat(inp.value) || 0;
-    if(amt <= 0) { skipped++; continue; }
+    var cashEntered = parseFloat(inp.value) || 0;
     var l = findL(lid);
     if(!l) continue;
+    if(!l.dayPayments) l.dayPayments = new Array(25).fill(null);
+    while(l.dayPayments.length < 25) l.dayPayments.push(null);
+    if(!l.advanceBalance) l.advanceBalance = 0;
+    var due = l.dailyPayment || 0;
+
     if(dayIdx >= 0) {
-      if(!l.dayPayments) l.dayPayments = new Array(25).fill(null);
-      while(l.dayPayments.length < 25) l.dayPayments.push(null);
-      // OVERWRITE for bulk entry — input shows current value, officer edits directly
-      l.dayPayments[dayIdx] = amt;
+      if(cashEntered <= 0) {
+        // No cash — try to cover from advance
+        if(l.advanceBalance >= due) {
+          l.dayPayments[dayIdx] = due; // day covered by advance
+          l.advanceBalance = Math.round((l.advanceBalance - due)*100)/100;
+          saved++;
+        } else {
+          skipped++; continue;
+        }
+      } else if(l.advanceBalance > 0) {
+        // Client has advance AND paid cash — add cash to advance
+        l.advanceBalance = Math.round((l.advanceBalance + cashEntered)*100)/100;
+        // Try to cover today from advance
+        if(l.advanceBalance >= due) {
+          l.dayPayments[dayIdx] = due;
+          l.advanceBalance = Math.round((l.advanceBalance - due)*100)/100;
+        }
+        saved++;
+      } else if(cashEntered > due) {
+        // Overpayment — allocate daily, rest to advance
+        l.dayPayments[dayIdx] = due;
+        l.advanceBalance = Math.round((l.advanceBalance + cashEntered - due)*100)/100;
+        saved++;
+      } else {
+        // Normal payment — exact or partial
+        l.dayPayments[dayIdx] = cashEntered;
+        saved++;
+      }
     } else {
       payments.push({id:Date.now()+Math.random()+i, loanId:lid, amount:amt, date:selectedDate, notes:'Daily entry'+(selectedDate!==today?' (backdated)':''), recordedBy:cu.display});
     }
@@ -5944,6 +5975,17 @@ function renderDataManage(mc){
     h+='<div class="cdb"><div style="font-size:13px;color:var(--ok);font-weight:600;">✓ No duplicate clients or loans detected.</div></div></div>';
   }
 
+  // ── RESET LOANS (start fresh) ──
+  h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--r)">';
+  h+='<div class="cdh" style="background:rgba(192,57,43,.06)"><span class="cdt" style="color:var(--r)">🗑 Delete All Loans & Clients (Start Fresh)</span></div>';
+  h+='<div class="cdb">';
+  h+='<div style="font-size:12px;color:var(--mu);margin-bottom:12px;">This will permanently delete ALL clients, loans and payment records for your region. Use this to start fresh. Applications and disbursements are kept.</div>';
+  h+='<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+  if(canDo('credit_north'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'NORTH\')">🗑 Delete All NORTH Region Loans</button>';
+  if(canDo('credit_south'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'SOUTH\')">🗑 Delete All SOUTH Region Loans</button>';
+  if(canDo('admin'))h+='<button class="btn btd" style="padding:10px 20px;" onclick="deleteAllLoansForRegion(\'ALL\')">🗑 Delete ALL Loans (All Regions)</button>';
+  h+='</div></div></div>';
+
   // ── BRANCH MANAGEMENT ────────────────────────────────────────────────────
   h+='<div class="cd" style="margin-bottom:14px;border-left:4px solid var(--in)"><div class="cdh" style="background:rgba(52,152,219,.05)"><span class="cdt" style="color:var(--in)">&#127970; Branch Management</span></div><div class="cdb">';
   h+='<div style="font-size:12px;color:var(--mu);margin-bottom:14px">Add or remove branches. New branches get manager, 3 officer, and assistant logins automatically.</div>';
@@ -6202,6 +6244,41 @@ function cleanupDuplicates(){
   logAct('act','Duplicate cleanup: removed '+removedClients+' clients, '+removedLoans+' loans, merged '+mergedPayments+' payments');
   save();
   toast('✓ Cleaned up: '+removedClients+' duplicate clients and '+removedLoans+' duplicate loans removed. '+mergedPayments+' payments merged.');
+  renderDataManage(document.getElementById('mainct'));
+}
+
+function deleteAllLoansForRegion(region){
+  var regionLabel=region==='ALL'?'ALL regions':region+' region';
+  if(!confirm('DELETE ALL clients, loans and payments for '+regionLabel+'?\n\nThis cannot be undone. Applications and disbursements are kept.'))return;
+  if(!confirm('FINAL WARNING — confirm delete all loans for '+regionLabel+'?'))return;
+  var branchList=region==='NORTH'?NORTH:region==='SOUTH'?SOUTH:NORTH.concat(SOUTH);
+  var delClients=0,delLoans=0;
+  // Delete loans
+  var loansToKeep=[];
+  for(var i=0;i<loans.length;i++){
+    var lc=findC(loans[i].clientId);
+    if(lc&&branchList.indexOf(lc.branch)>=0){
+      delLoans++;
+      if(_fbReady&&_db)_db.collection('salty').doc('loans').collection('l').doc(loans[i].id).delete().catch(function(){});
+    } else loansToKeep.push(loans[i]);
+  }
+  loans=loansToKeep;
+  // Delete clients
+  var clientsToKeep=[];
+  for(var i=0;i<clients.length;i++){
+    if(branchList.indexOf(clients[i].branch)>=0){
+      delClients++;
+      if(_fbReady&&_db)_db.collection('salty').doc('clients').collection('c').doc(clients[i].id).delete().catch(function(){});
+    } else clientsToKeep.push(clients[i]);
+  }
+  clients=clientsToKeep;
+  // Delete payments
+  payments=payments.filter(function(p){
+    var l=findL(p.loanId);return l!=null;
+  });
+  logAct('act','DELETED ALL loans and clients for '+regionLabel+' — '+delLoans+' loans, '+delClients+' clients');
+  save();
+  toast('✓ Deleted '+delLoans+' loans and '+delClients+' clients for '+regionLabel+'. Ready to start fresh.');
   renderDataManage(document.getElementById('mainct'));
 }
 
