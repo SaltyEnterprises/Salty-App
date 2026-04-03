@@ -1858,8 +1858,20 @@ function isMine(a){
     if(!a.branch||a.branch==='')return true;
     return SOUTH.indexOf(a.branch)>=0||(a.region==='SOUTH');
   }
-  if(cu.role==='manager')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():false;
-  if(cu.role==='officer')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():a.officerUser===cu.username;
+  if(cu.role==='manager'){
+    if(!cu.branch)return false;
+    var mgBr=(cu.branch||'').toLowerCase().trim();
+    var appBr=(a.branch||'').toLowerCase().trim();
+    // Match exactly OR match after stripping spaces
+    return mgBr===appBr||mgBr.replace(/\s+/g,'')===appBr.replace(/\s+/g,'');
+  }
+  if(cu.role==='officer'){
+    if(a.officerUser===cu.username)return true;
+    if(!cu.branch)return false;
+    var offBr=(cu.branch||'').toLowerCase().trim().replace(/\s+/g,'');
+    var appBr2=(a.branch||'').toLowerCase().trim().replace(/\s+/g,'');
+    return offBr===appBr2;
+  }
   if(cu.role==='assistant')return cu.branch?(a.branch||'').toLowerCase().trim()===(cu.branch||'').toLowerCase().trim():true;
   return false;
 }
@@ -1922,7 +1934,7 @@ function updateBadges(){
     // Manager badge: submitted apps in their branch waiting for their approval
     for(var i=0;i<applications.length;i++){
       var a=applications[i];
-      if(a.status==='submitted'&&cu.branch&&a.branch.toLowerCase().trim()===cu.branch.toLowerCase().trim())pa++;
+      if(a.status==='submitted'&&cu.branch&&(a.branch||'').toLowerCase().trim().replace(/\s+/g,'')===cu.branch.toLowerCase().trim().replace(/\s+/g,''))pa++;
     }
     pd=0;
   } else if(cu&&cu.role==='assistant'){
@@ -2569,7 +2581,8 @@ function saveApp(isDraft) {
   applications.push(app);
   logAct('act', (isDraft ? 'Saved draft for ' : 'Submitted app for ') + name);
   _markDirty('applications', app.id); _markDirty('meta','');
-  _saveDoc('applications', app.id, app);
+  // Save directly to Firebase subcollection immediately (don't wait for debounce)
+  if(_fbReady&&_db)_db.collection('salty').doc('applications').collection('a').doc(app.id).set(app).catch(function(e){console.error('App save error:',e);});
   save();
   closeModal('appmod');
   toast(isDraft ? 'Draft saved!' : 'Application submitted! Photos uploading...');
@@ -2579,13 +2592,13 @@ function saveApp(isDraft) {
   if (!isDraft) _uploadPhotosAndSigsInBackground(app.id, app);
 }
 
-function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
+function submitApp(id){var a=findA(id);if(!a)return;a.status='submitted';a.submittedAt=now_();logAct('act','Submitted app for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');if(_fbReady&&_db)_db.collection('salty').doc('applications').collection('a').doc(a.id).set(a).catch(function(e){console.error('submitApp FB error:',e);});save();toast('Submitted to Branch Manager for review!');renderMyApps(document.getElementById('mainct'));}
 function mgrDecide(id,decision){
   var a=findA(id);if(!a)return;
   if(decision==='reject'){
     var notes=prompt('Reason for rejection (optional):','');
     a.status='rejected';a.amountApproved=0;a.decisionNotes=notes||'';a.decidedAt=now_();a.decidedBy=cu.display;a.mgrDecidedBy=cu.display;
-    logAct('act','Manager rejected application for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();toast('Application rejected.');showTab('applications');
+    logAct('act','Manager rejected application for '+a.name);_markDirty('applications',a.id);_markDirty('meta','');if(_fbReady&&_db)_db.collection('salty').doc('applications').collection('a').doc(a.id).set(a).catch(function(){});save();toast('Application rejected.');showTab('applications');
   } else {
     a.status='mgr_approved';a.mgrApprovedAt=now_();a.mgrApprovedBy=cu.display;
     logAct('act','Manager approved application for '+a.name+' — forwarded to CC');_markDirty('applications',a.id);_markDirty('meta','');_saveDoc('applications',a.id,a);save();
