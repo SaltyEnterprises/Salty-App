@@ -3969,6 +3969,74 @@ function mrSet(type,branch,period,val){
   if(el)el.textContent=zmw(sum);
 }
 
+function mrSetExact(type,branch,period,val,sumId){
+  meSet(type,branch,period,val);
+  if(!sumId)return;
+  var branches=rptBranches();
+  var sum=0;
+  branches.forEach(function(b){sum+=meGet(type,b,period);});
+  var el=document.getElementById(sumId);
+  if(el)el.textContent=zmw(sum);
+}
+
+function rptExactTableDaily(branches,rows,period){
+  var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
+  h+='<thead><tr style="background:rgba(139,90,43,.12)">';
+  h+='<th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;min-width:200px;border:1px solid var(--bd)">METRIC</th>';
+  for(var bi=0;bi<branches.length;bi++){
+    h+='<th style="padding:8px;text-align:right;font-size:10px;border:1px solid var(--bd)">'+branches[bi].toUpperCase()+'</th>';
+  }
+  h+='<th style="padding:8px;text-align:right;font-size:10px;border:1px solid var(--bd);background:rgba(139,90,43,.08);">SUMMARY</th>';
+  h+='</tr></thead><tbody>';
+
+  for(var ri=0;ri<rows.length;ri++){
+    var r=rows[ri];
+    if(r.divider){h+='<tr><td colspan="'+( branches.length+2)+'" style="height:2px;background:rgba(139,90,43,.1);padding:0;"></td></tr>';continue;}
+    var bstyle='border-bottom:1px solid var(--bd);'+( r.bold?'font-weight:700;background:rgba(139,90,43,.04);':'')+'';
+    h+='<tr style="'+bstyle+'">';
+    h+='<td style="padding:6px 10px;font-size:10px;color:var(--mu);border:1px solid var(--bd);'+( r.bold?'font-weight:700;':'')+'">'+r.label+'</td>';
+
+    if(r.perBranch){
+      var sum=0;
+      for(var bi=0;bi<branches.length;bi++){
+        var val=meGet(r.type,branches[bi],period);
+        sum+=val;
+        h+='<td style="padding:3px 5px;border:1px solid var(--bd);">';
+        h+='<input type="number" step="0.01" min="0" value="'+( val||'')+'" placeholder="0.00" ';
+        h+='style="width:100%;min-width:70px;font-family:monospace;font-size:11px;padding:3px 5px;border:1px solid rgba(139,90,43,.2);border-radius:3px;background:rgba(255,255,220,.1);color:'+( r.cls||'var(--tx)')+';text-align:right;" ';
+        h+='onchange="mrSetExact(\''+r.type+'\',\''+branches[bi]+'\',\''+period+'\',parseFloat(this.value)||0,\'rds-'+r.type+'-'+period+'\')" ';
+        h+='onclick="this.select()">';
+        h+='</td>';
+      }
+      if(r.autoSummary){
+        var av=r.autoSummary(branches,period);
+        h+='<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;color:'+( r.cls||'var(--tx)')+';border:1px solid var(--bd);background:rgba(139,90,43,.05);">'+zmw(av)+'</td>';
+      } else {
+        h+='<td id="rds-'+r.type+'-'+period+'" style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:700;color:'+( r.cls||'var(--tx)')+';border:1px solid var(--bd);background:rgba(139,90,43,.05);">'+zmw(sum)+'</td>';
+      }
+    } else {
+      for(var bi=0;bi<branches.length;bi++){
+        h+='<td style="padding:6px;border:1px solid var(--bd);text-align:center;color:var(--mu);font-size:10px;">&#8212;</td>';
+      }
+      if(r.autoSummary){
+        var sv2=r.autoSummary(branches,period);
+        h+='<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;color:'+( r.cls||'var(--ok)')+';border:1px solid var(--bd);background:rgba(139,90,43,.05);">'+zmw(sv2)+'</td>';
+      } else {
+        var sv=meGet(r.type,'_SUMMARY_',period);
+        h+='<td style="padding:3px 5px;border:1px solid var(--bd);background:rgba(139,90,43,.05);">';
+        h+='<input type="number" step="0.01" min="0" value="'+( sv||'')+'" placeholder="0.00" ';
+        h+='style="width:100%;min-width:70px;font-family:monospace;font-size:11px;padding:3px 5px;border:1px solid rgba(139,90,43,.3);border-radius:3px;background:rgba(255,255,180,.2);color:'+( r.cls||'var(--ok)')+';text-align:right;font-weight:700;" ';
+        h+='onchange="meSet(\''+r.type+'\',\'_SUMMARY_\',\''+period+'\',parseFloat(this.value)||0)" ';
+        h+='onclick="this.select()">';
+        h+='</td>';
+      }
+    }
+    h+='</tr>';
+  }
+  h+='</tbody></table></div>';
+  return h;
+}
+
 function buildDailyReport(){
   var dateVal=document.getElementById('rpt-date-inp')?document.getElementById('rpt-date-inp').value:td_();
   if(!dateVal)dateVal=td_();
@@ -3976,40 +4044,50 @@ function buildDailyReport(){
   var dayName=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var d=new Date(dateVal+'T00:00:00');
   var label=dayName[d.getDay()]+' : '+dateVal.split('-').reverse().join('/');
-  var p=dateVal; // period key
+  var p=dateVal;
 
   var h='<div class="rh" style="margin-bottom:14px"><div>';
   h+='<div class="rht">Daily Report</div><div class="rhs">'+label+'</div></div>';
   h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
   h+='<input type="date" id="rpt-date-inp" value="'+dateVal+'" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:12px" onchange="buildDailyReport()">';
   h+='<button class="btn bts" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">&#128424; Print</button>';
-  h+='<button class="btn bts" style="background:rgba(41,128,185,.2);color:#fff;border-color:rgba(41,128,185,.4)" onclick="swRep(\'import\',document.querySelector(\'.rtb:nth-child(6)\'))">&#128196; Import Data</button>';
+  h+='<button class="btn bts" style="background:rgba(41,128,185,.2);color:#fff;border-color:rgba(41,128,185,.4)" onclick="swRep(\'import\',document.querySelector(\'.rtb:nth-child(6)\'))">&#128196; Import</button>';
   h+='</div></div>';
 
+  // Define rows exactly matching Excel template
   var rows=[
-    {label:'EXPECTED AMOUNT',   type:'exp',       cls:''},
-    {label:'COLLECTED AMOUNT',  type:'coll',      cls:'var(--ok)'},
-    {label:'BALANCE',           type:'balance',   cls:'var(--r)'},
+    {label:'EXPECTED AMOUNT',            type:'exp',       perBranch:true,  cls:''},
+    {label:'COLLECTED AMOUNT',           type:'coll',      perBranch:true,  cls:'var(--ok)'},
+    {label:'BALANCE',                    type:'balance',   perBranch:false, cls:'var(--r)',  autoSummary:function(br,per){var e=0,co=0;br.forEach(function(b){e+=meGet('exp',b,per);co+=meGet('coll',b,per);});return Math.max(0,e-co);}},
+    {label:'PREVIOUS BALANCE',           type:'prevbal',   perBranch:true,  cls:'var(--r)'},
+    {label:'PREVIOUS ADVANCE',           type:'prevadv',   perBranch:true,  cls:'var(--gd)'},
+    {label:'CUMULATIVE ADVANCE',         type:'cumadv',    perBranch:true,  cls:'var(--gd)'},
+    {label:'PREVIOUS CUMULATIVE ADVANCE',type:'prevcumadv',perBranch:true,  cls:''},
     {divider:true},
-    {label:'ADVANCE',           type:'adv',       cls:'var(--gd)'},
-    {label:'CUMULATIVE ADVANCE',type:'cumadv',    cls:''},
+    {label:'CREATED PENALTY',            type:'createdpen',perBranch:false, cls:'var(--wn)'},
+    {label:'COLLECTED PENALTY',          type:'collpen',   perBranch:false, cls:'var(--ok)'},
+    {label:'CUMULATIVE PENALTY',         type:'cumpen',    perBranch:true,  cls:'var(--wn)'},
+    {label:'PREVIOUS CUMULATIVE PENALTY',type:'prevcumpen',perBranch:true,  cls:'var(--wn)'},
     {divider:true},
-    {label:'CREATED PENALTY',   type:'createdpen',cls:'var(--wn)'},
-    {label:'COLLECTED PENALTY', type:'collpen',   cls:'var(--ok)'},
-    {label:'CUMULATIVE PENALTY',type:'cumpen',    cls:'var(--wn)'},
+    {label:'TOTAL RECOVERY',             type:'recovery',  perBranch:true,  cls:'var(--in)'},
+    {label:'RECOVERY THIS WEEK',         type:'recweek',   perBranch:false, cls:'var(--in)'},
+    {label:'RECOVERY PREVIOUS WEEKS',    type:'recprevwk', perBranch:false, cls:'var(--in)'},
+    {label:'ADVANCE',                    type:'adv',       perBranch:false, cls:'var(--gd)'},
     {divider:true},
-    {label:'TOTAL RECOVERY',    type:'recovery',  cls:'var(--in)'},
-    {label:'RECOVERY THIS WEEK',type:'recweek',   cls:'var(--in)'},
+    {label:'TOTAL COLLECTED',            type:'totalcoll', perBranch:false, cls:'var(--ok)',  bold:true, autoSummary:function(br,per){var co=0;br.forEach(function(b){co+=meGet('coll',b,per);});var rec=0;br.forEach(function(b){rec+=meGet('recovery',b,per);});var adv=meGet('adv','_SUMMARY_',per);return co+rec+adv;}},
+    {label:'CUMULATIVE BALANCE',         type:'cumbal',    perBranch:true,  cls:'var(--r)',   bold:true},
+    {label:'PREVIOUS CUMULATIVE BALANCE',type:'prevcumbal',perBranch:false, cls:'var(--r)'},
     {divider:true},
-    {label:'TOTAL COLLECTED',   type:'totalcoll', cls:'var(--ok)',bold:true},
-    {label:'ACCUMULATED BALANCE',type:'accbal',   cls:'var(--r)'},
-    {label:'CUMULATIVE BALANCE',type:'cumbal',    cls:'var(--r)',bold:true},
-    {divider:true},
-    {label:'FOAM MONEY',        type:'foam',      cls:''},
-    {label:'EXPENSE',           type:'expense',   cls:'var(--r)'},
+    {label:'UNCLAIMED',                  type:'unclaimed', perBranch:false, cls:'var(--wn)'},
+    {label:'BALANCE IN COLLATERAL',      type:'balcol',    perBranch:false, cls:''},
+    {label:'FOAM MONEY',                 type:'foam',      perBranch:false, cls:''},
+    {label:'EXPENSE',                    type:'expense',   perBranch:false, cls:'var(--r)'},
   ];
 
-  h+=manualRptTable(branches,rows,p);
+  h+='<div class="cd" style="margin-bottom:14px">';
+  h+='<div class="cdh"><span class="cdt">'+label+'</span></div>';
+  h+=rptExactTableDaily(branches,rows,p);
+  h+='</div>';
   document.getElementById('rcont').innerHTML=h;
 }
 
