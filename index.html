@@ -3405,7 +3405,7 @@ function buildDPTable(branch) {
   var totalPaid  = allRows.filter(function(r){return r.alreadyPaid>0;}).length;
   var dateLabel  = selectedDate===today ? 'today' : fmtD(selectedDate);
 
-  var h = '<div style="background:linear-gradient(135deg,#1a3a5f,#1a5276);color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">';
+  var h = '<div style="background:linear-gradient(135deg,#1a3a5f,#1a5276);color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:10;">';
   h += '<div><div style="font-size:16px;font-weight:800">&#128176; '+esc(branch)+'</div>';
   h += '<div style="font-size:11px;opacity:.8;margin-top:2px">'+totalLoans+' clients &nbsp;&#183;&nbsp; '+totalPaid+' paid '+dateLabel+'</div></div>';
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
@@ -3492,6 +3492,16 @@ function buildDPTable(branch) {
   h += '<div style="font-family:monospace;font-size:18px;font-weight:800;color:var(--ok);">'+zmw(grandTotal)+'</div>';
   h += '</div>';
   el.innerHTML = h;
+  // Event delegation — handles Save Group / Clear Group clicks safely
+  el.addEventListener('click', function(ev){
+    var btn = ev.target.closest('[data-action]');
+    if(!btn) return;
+    var action = btn.dataset.action;
+    var br = btn.dataset.branch;
+    var gid = btn.dataset.grpid;
+    if(action==='savegroup') saveGroupPayments(br, gid);
+    else if(action==='cleargroup') clearGroupPayments(br, gid);
+  });
 }
 
 function saveGroupPayments(branch, grpId){
