@@ -2931,10 +2931,10 @@ function approveDisb(id, seriesLetter){
       clients.push(c);
     }
     _markDirty('clients', c.id);
-    // ── DUPLICATE PREVENTION: skip if loan already exists for this application ──
+    // ── DUPLICATE PREVENTION: skip if loan already exists for this SAME application ──
     var loanExists=false;
     for(var lx=0;lx<loans.length;lx++){
-      if(loans[lx].sourceAppId===a.id||loans[lx].clientId===c.id){loanExists=true;break;}
+      if(loans[lx].sourceAppId===a.id){loanExists=true;break;}
     }
     if(loanExists){a.status='disbursed';continue;}
     // Create loan
@@ -2966,6 +2966,11 @@ function approveDisb(id, seriesLetter){
   updateBadges();
   toast('Approved! '+created+' '+seriesLetter+'-series loan'+(created!==1?'s':'')+' activated.');
   renderDisbursements(document.getElementById('mainct'));
+}
+function reprocessDisb(id){
+  var d=findD(id);if(!d||!d.series)return;
+  // Re-run approveDisb with the existing series letter — it will skip clients that already have loans
+  approveDisb(id, d.series);
 }
 function printDisb(id){
   var d=findD(id);if(!d)return;
@@ -3231,9 +3236,23 @@ function viewDisb(id){
     h+='</div>';
   }
   if(d.status==='approved'){
+    // Check how many clients actually have loans created
+    var _missingLoans=0;
+    for(var _mi=0;_mi<d.clients.length;_mi++){
+      var _mApp=findA(d.clients[_mi].appId);
+      if(!_mApp)continue;
+      var _mFound=false;
+      for(var _ml=0;_ml<loans.length;_ml++){if(loans[_ml].sourceAppId===_mApp.id){_mFound=true;break;}}
+      if(!_mFound)_missingLoans++;
+    }
     h+='<div style="background:rgba(30,132,73,.1);border:1.5px solid var(--ok);border-radius:10px;padding:12px 16px;margin-bottom:14px">';
     h+='<div style="font-weight:700;color:var(--ok);font-size:15px">&#10003; APPROVED — Loans Activated</div>';
-    h+='<div style="font-size:12px;color:var(--mu)">By Credit Controller: '+esc(d.approvedBy||'')+' on '+fmtD(d.approvedAt?d.approvedAt.substring(0,10):'')+'</div><div style="font-size:12px;color:var(--mu);margin-top:3px">Series: <strong>'+esc(d.series||'?')+'</strong> &nbsp;·&nbsp; Clients and loans already created.</div></div>';
+    h+='<div style="font-size:12px;color:var(--mu)">By Credit Controller: '+esc(d.approvedBy||'')+' on '+fmtD(d.approvedAt?d.approvedAt.substring(0,10):'')+'</div><div style="font-size:12px;color:var(--mu);margin-top:3px">Series: <strong>'+esc(d.series||'?')+'</strong> &nbsp;·&nbsp; '+(d.clients.length-_missingLoans)+'/'+d.clients.length+' loans created.</div>';
+    if(_missingLoans>0&&canDo('admin','credit_north','credit_south')){
+      h+='<div style="margin-top:10px;padding:10px;background:rgba(212,130,10,.12);border:1px solid var(--wn);border-radius:8px"><div style="font-weight:700;color:var(--wn);margin-bottom:6px">⚠️ '+_missingLoans+' client'+(_missingLoans>1?'s':'')+' missing loans</div>';
+      h+='<button class="btn btw" onclick="reprocessDisb(\''+d.id+'\')">🔄 Re-process Missing Loans</button></div>';
+    }
+    h+='</div>';
   }
   if(d.status==='rejected'){
     h+='<div style="background:rgba(192,57,43,.08);border:1.5px solid var(--r);border-radius:10px;padding:12px 16px;margin-bottom:14px">';
