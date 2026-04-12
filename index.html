@@ -699,7 +699,7 @@ tr:last-child td{border-bottom:none}
 </div>
 <table class="ctbl"><thead><tr><th>Item</th><th>Condition</th><th>Comments</th><th></th></tr></thead><tbody id="g1tbl"></tbody></table>
 <button class="btn btg bts" style="margin-top:6px" onclick="addG1Row()">+ Add Item</button>
-<div class="fg" style="margin-top:10px"><label class="fl">Guarantor 1 Photos</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apg1fl','g1photos')"><div style="font-size:22px">&#128247;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apg1fl"></div></div>
+<div class="fg" style="margin-top:10px"><label class="fl">Guarantor 1 Photos</label><div style="display:flex;gap:6px"><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" capture="environment" onchange="hf(this,'apg1fl','g1photos')"><div style="font-size:18px">&#128247;</div><div style="font-size:10px;color:var(--mu)">Camera</div></div><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" multiple onchange="hf(this,'apg1fl','g1photos')"><div style="font-size:18px">&#128193;</div><div style="font-size:10px;color:var(--mu)">Browse</div></div></div><div id="apg1fl"></div></div>
 <div class="fg" style="margin-top:10px"><label class="fl">Guarantor 1 Signature</label>
 <div class="sigwrap"><canvas class="sigpad" id="sig-g1" width="600" height="90"></canvas><button class="sigclear" onclick="clearSig('sig-g1')">Clear</button></div></div></div>
 <div class="fsec"><div class="fst">Section 5 &#8212; Guarantor 2</div>
@@ -714,14 +714,14 @@ tr:last-child td{border-bottom:none}
 </div>
 <table class="ctbl"><thead><tr><th>Item</th><th>Condition</th><th>Comments</th><th></th></tr></thead><tbody id="g2tbl"></tbody></table>
 <button class="btn btg bts" style="margin-top:6px" onclick="addG2Row()">+ Add Item</button>
-<div class="fg" style="margin-top:10px"><label class="fl">Guarantor 2 Photos</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apg2fl','g2photos')"><div style="font-size:22px">&#128247;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apg2fl"></div></div>
+<div class="fg" style="margin-top:10px"><label class="fl">Guarantor 2 Photos</label><div style="display:flex;gap:6px"><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" capture="environment" onchange="hf(this,'apg2fl','g2photos')"><div style="font-size:18px">&#128247;</div><div style="font-size:10px;color:var(--mu)">Camera</div></div><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" multiple onchange="hf(this,'apg2fl','g2photos')"><div style="font-size:18px">&#128193;</div><div style="font-size:10px;color:var(--mu)">Browse</div></div></div><div id="apg2fl"></div></div>
 <div class="fg" style="margin-top:10px"><label class="fl">Guarantor 2 Signature</label>
 <div class="sigwrap"><canvas class="sigpad" id="sig-g2" width="600" height="90"></canvas><button class="sigclear" onclick="clearSig('sig-g2')">Clear</button></div></div></div>
 <div class="fsec"><div class="fst">Section 6 &#8212; Photos</div>
 <div class="fr3">
-<div class="fg"><label class="fl">Business Photos</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apbfl','business')"><div style="font-size:22px">&#127978;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apbfl"></div></div>
-<div class="fg"><label class="fl">Home / Collateral</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'aphfl','home')"><div style="font-size:22px">&#127969;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="aphfl"></div></div>
-<div class="fg"><label class="fl">Client Portrait / ID</label><div class="uz"><input type="file" accept="image/*" multiple onchange="hf(this,'apgfl','guarantor')"><div style="font-size:22px">&#128100;</div><div style="font-size:11px;color:var(--mu)">Browse</div></div><div id="apgfl"></div></div>
+<div class="fg"><label class="fl">Business Photos</label><div style="display:flex;gap:6px"><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" capture="environment" onchange="hf(this,'apbfl','business')"><div style="font-size:18px">&#128247;</div><div style="font-size:10px;color:var(--mu)">Camera</div></div><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" multiple onchange="hf(this,'apbfl','business')"><div style="font-size:18px">&#128193;</div><div style="font-size:10px;color:var(--mu)">Browse</div></div></div><div id="apbfl"></div></div>
+<div class="fg"><label class="fl">Home / Collateral</label><div style="display:flex;gap:6px"><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" capture="environment" onchange="hf(this,'aphfl','home')"><div style="font-size:18px">&#128247;</div><div style="font-size:10px;color:var(--mu)">Camera</div></div><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" multiple onchange="hf(this,'aphfl','home')"><div style="font-size:18px">&#128193;</div><div style="font-size:10px;color:var(--mu)">Browse</div></div></div><div id="aphfl"></div></div>
+<div class="fg"><label class="fl">Client Portrait / ID</label><div style="display:flex;gap:6px"><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" capture="environment" onchange="hf(this,'apgfl','guarantor')"><div style="font-size:18px">&#128247;</div><div style="font-size:10px;color:var(--mu)">Camera</div></div><div class="uz" style="flex:1;padding:10px"><input type="file" accept="image/*" multiple onchange="hf(this,'apgfl','guarantor')"><div style="font-size:18px">&#128193;</div><div style="font-size:10px;color:var(--mu)">Browse</div></div></div><div id="apgfl"></div></div>
 </div></div>
 <div class="fsec"><div class="fst">Section 7 &#8212; Client Signature</div>
 <div style="background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.8;color:var(--t2)">
@@ -1725,6 +1725,20 @@ function showSyncDot() {
   setTimeout(function(){ dot.style.opacity = '0'; }, 2000);
 }
 
+// Refresh the currently visible tab without disrupting navigation
+function _safeRefresh() {
+  try {
+    var tab = window._currentTab;
+    if (!tab || !cu) return;
+    var mc = document.getElementById('mainct');
+    if (!mc) return;
+    // Don't refresh if a modal is open (user might be filling a form)
+    var modals = document.querySelectorAll('.mo.op');
+    if (modals.length > 0) return;
+    showTab(tab);
+  } catch(e) { console.warn('Safe refresh error:', e); }
+}
+
 
 // ===== PROPER CSV PARSER (handles commas inside quoted fields) =====
 function parseCSVLine(line) {
@@ -2044,6 +2058,7 @@ function renderMyApps(mc){
       h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'renderMyApps(document.getElementById(\\\'mainct\\\'))\')">View</button>';
       if(a.status==='draft')h+='<button class="btn btr bts" style="font-size:10px;padding:4px 8px" onclick="submitApp(\''+a.id+'\')">Submit</button>';
       if(a.status==='draft'||a.status==='submitted'||a.status==='rejected')h+='<button class="ab" style="color:var(--in);border-color:var(--in)" onclick="openEditApp(\''+a.id+'\')">&#9998; Edit</button>';
+      if(a.status==='draft'||a.status==='rejected')h+='<button class="ab" style="color:var(--r)" onclick="confirmDelApp(\''+a.id+'\')">&#128465;</button>';
       h+='</td></tr>';
     }
     h+='</tbody></table></div></div>';
@@ -2196,6 +2211,7 @@ function renderApplications(mc){
         h+='<button class="btn" style="flex:1;background:var(--s2);color:var(--tx);border:1px solid var(--bd)" onclick="viewApp(\''+a.id+'\')">&#128203; View Full Application</button>';
         h+='<button class="btn btr" style="padding:8px 14px" onclick="mgrDecide(\''+a.id+'\',\'reject\')">&#10007; Reject</button>';
         h+='<button class="btn" style="padding:8px 14px;font-weight:700;background:#9b59b6;color:#fff;border:none" onclick="mgrDecide(\''+a.id+'\',\'approve\')">&#10003; Approve & Forward</button>';
+        h+='<button class="ab" style="color:var(--r);padding:8px 6px" onclick="confirmDelApp(\''+a.id+'\')">&#128465;</button>';
         h+='</div></div>';
       }
       h+='</div>';
@@ -2215,7 +2231,9 @@ function renderApplications(mc){
         h+='<td style="font-family:monospace;font-size:11px">'+zmw(a.amountRequested)+'</td>';
         h+='<td style="font-size:11px;color:var(--mu)">'+esc(a.officerName||'')+'</td>';
         h+='<td><span class="bg '+sc+'" style="font-size:9px">'+sl+'</span></td>';
-        h+='<td><button class="ab" onclick="viewApp(\''+a.id+'\')">View</button></td>';
+        h+='<td><button class="ab" onclick="viewApp(\''+a.id+'\')">View</button>';
+        if(a.status!=='disbursed')h+='<button class="ab" style="color:var(--r)" onclick="confirmDelApp(\''+a.id+'\')">&#128465;</button>';
+        h+='</td>';
         h+='</tr>';
       }
       h+='</tbody></table></div></div>';
@@ -2879,7 +2897,7 @@ function renderDisbursements(mc){
   }
   var h=readyBanner+'<div class="cd"><div class="cdh"><span class="cdt">Disbursements ('+pending.length+' pending)</span>'+(canDo('assistant','officer')?'<button class="btn btr bts" onclick="openDisbModal()">+ New List</button>':'')+'</div><div class="tw"><table><thead><tr><th>Date</th><th>Branch</th><th>Clients</th><th>Total</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!all.length){var waitingForCC=0;for(var i=0;i<applications.length;i++){if(applications[i].status==="submitted"&&isMine(applications[i]))waitingForCC++;}var emptyMsg=canDo("assistant")&&waitingForCC>0?"<div class=\"ei\">&#9203;</div><div class=\"et\">"+waitingForCC+" application"+(waitingForCC>1?"s":"")+" waiting for Credit Controller approval<br><small style=\"color:var(--mu)\">Check the Applications tab to monitor status</small></div>":"<div class=\"ei\">&#128184;</div><div class=\"et\">No disbursements yet</div>";h+="<tr><td colspan=\"7\"><div class=\"es\">"+emptyMsg+"</div></td></tr>";}
-  for(var i=0;i<all.length;i++){var d=all[i],total=0;for(var j=0;j<d.clients.length;j++)total+=d.clients[j].amount||0;var sc=d.status==='pending'?'bgo':d.status==='approved'?'bgg':'bgr';h+='<tr><td style="font-weight:600">'+fmtD(d.date)+'</td><td>'+esc(d.branch||'Multiple')+'</td><td>'+d.clients.length+'</td><td style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(total)+'</td><td style="font-size:11px;color:var(--mu)">'+esc(d.submittedBy)+'</td><td><span class="bg '+sc+'">'+esc(d.status)+'</span></td><td style="display:flex;gap:3px">'+'<button class="ab" onclick="viewDisb(\''+d.id+'\')">&nbsp;View</button>'+(canDo('credit_north','credit_south')&&d.status==='pending'?'<button class="btn btk bts" onclick="viewDisb(\''+d.id+'\')" style="font-size:10px">&#10003; Review</button>':'')+(canDo('admin')||((canDo('credit_north','credit_south'))&&d.status!=='approved')?'<button class="ab" style="color:var(--r)" onclick="confirmDelDisb(\''+d.id+'\')">&#128465;</button>':'')+'</td></tr>';}
+  for(var i=0;i<all.length;i++){var d=all[i],total=0;for(var j=0;j<d.clients.length;j++)total+=d.clients[j].amount||0;var sc=d.status==='pending'?'bgo':d.status==='approved'?'bgg':'bgr';h+='<tr><td style="font-weight:600">'+fmtD(d.date)+'</td><td>'+esc(d.branch||'Multiple')+'</td><td>'+d.clients.length+'</td><td style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(total)+'</td><td style="font-size:11px;color:var(--mu)">'+esc(d.submittedBy)+'</td><td><span class="bg '+sc+'">'+esc(d.status)+'</span></td><td style="display:flex;gap:3px">'+'<button class="ab" onclick="viewDisb(\''+d.id+'\')">&nbsp;View</button>'+(canDo('credit_north','credit_south')&&d.status==='pending'?'<button class="btn btk bts" onclick="viewDisb(\''+d.id+'\')" style="font-size:10px">&#10003; Review</button>':'')+(canDo('admin')||((canDo('credit_north','credit_south'))&&d.status!=='approved')||(canDo('assistant')&&d.status==='pending'&&d.submittedBy===cu.display)?'<button class="ab" style="color:var(--r)" onclick="confirmDelDisb(\''+d.id+'\')">&#128465;</button>':'')+'</td></tr>';}
   h+='</tbody></table></div></div>';mc.innerHTML=h;
 }
 function openDisbModal(){
@@ -3131,7 +3149,13 @@ function renderClients(mc,filter){
   h+='</tbody></table></div></div>';mc.innerHTML=h;
 }
 function viewClient(id){var c=findC(id);if(!c)return;var cl=[],tp=0;for(var i=0;i<loans.length;i++){if(loans[i].clientId===id){cl.push(loans[i]);tp+=gTP(loans[i].id);}}var cs=gCS(c.collateralLockedDate,id),mc=document.getElementById('mainct');var h='<button class="bk" onclick="renderClients(document.getElementById(\'mainct\'),\'\')">&#8592; Back to Clients</button><div style="margin-bottom:12px"><span style="font-family:monospace;font-size:11px;color:var(--r)">'+esc(c.code||'')+'</span><h2 style="font-size:20px;color:var(--r2);font-weight:700;margin-top:3px">'+esc(c.name)+'</h2><div style="font-size:12px;color:var(--mu)">'+esc(c.branch)+' &#183; Registered '+fmtD(c.regDate)+'</div></div>';h+='<div class="fr" style="margin-bottom:12px"><div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Personal Details</span></div><div class="cdb"><div class="rm"><span class="rml">NRC</span><span class="rmv">'+esc(c.nrc||'&#8212;')+'</span></div><div class="rm"><span class="rml">Phone</span><span class="rmv">'+esc(c.phone)+'</span></div><div class="rm"><span class="rml">Occupation</span><span class="rmv">'+esc(c.occupation||'&#8212;')+'</span></div></div></div>';h+='<div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Collateral</span></div><div class="cdb">';if(cs.status==='locked')h+='<div style="background:rgba(192,57,43,.06);border:1px solid rgba(192,57,43,.2);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:700;color:var(--r);font-size:13px">&#128274; Locked — Active Loan</div><div style="font-size:11px;color:var(--mu);margin-top:3px">Day '+cs.elapsed+' since disbursement</div></div>';else if(cs.status==='cooling'){var pct=cs.pct||0;h+='<div style="border:1px solid rgba(26,82,118,.25);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:700;color:var(--in);margin-bottom:2px">&#9203; Cooling — '+cs.daysLeft+' days remaining</div><div style="font-size:11px;color:var(--mu);margin-bottom:6px">Day '+cs.elapsed+' of '+COOL+' ('+pct+'% complete)</div><div class="pb" style="height:6px"><div class="pf" style="width:'+pct+'%"></div></div><div style="font-size:10px;color:var(--mu);margin-top:4px">Locked since: '+fmtD(c.collateralLockedDate)+'</div></div>';}else h+='<div style="background:rgba(30,132,73,.07);border:1px solid rgba(30,132,73,.25);border-radius:8px;padding:10px;font-weight:600;color:var(--ok);margin-bottom:8px">&#10003; Available — 90-day lock completed</div>';h+='<div class="rm"><span class="rml">Items</span><span class="rmv" style="font-size:11px;max-width:140px;text-align:right">'+esc(c.colItems||'&#8212;')+'</span></div></div></div></div>';if(canDo('admin','credit_north','credit_south'))h+='<div style="margin-bottom:12px"><button class="btn btr" onclick="issueLoanTo(\''+c.id+'\')">+ Issue Loan</button></div>';h+='<div class="cd"><div class="cdh"><span class="cdt">Loan History ('+cl.length+') &#8212; Paid: '+zmw(tp)+'</span></div><div class="tw"><table><thead><tr><th>Amt Given</th><th>Amt Due</th><th>Date</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>';if(!cl.length)h+='<tr><td colspan="7"><div class="es" style="padding:12px"><div class="et">No loans yet</div></div></td></tr>';for(var i=0;i<cl.length;i++){var l=cl[i],ltp=gTP(l.id),bal=Math.max(0,(l.amountDue||0)-ltp);h+='<tr><td>'+zmw(l.amountGiven)+'</td><td>'+zmw(l.amountDue)+'</td><td style="font-size:11px">'+fmtD(l.dateGiven)+'</td><td style="color:var(--ok);font-family:monospace;font-size:11px">'+zmw(ltp)+'</td><td style="color:var(--r);font-family:monospace;font-size:11px">'+zmw(bal)+'</td><td><span class="bg '+(l.status==='Active'?'bgr':l.status==='Completed'?'bgg':'bgx')+'">'+esc(l.status)+'</span></td><td><button class="ab" onclick="viewLoan(\''+l.id+'\')">View</button></td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
-function delClient(id){if(!confirm('Delete this client and all their data?'))return;var lids=[];for(var i=0;i<loans.length;i++){if(loans[i].clientId===id)lids.push(loans[i].id);}clients=clients.filter(function(c){return c.id!==id;});loans=loans.filter(function(l){return l.clientId!==id;});payments=payments.filter(function(p){return lids.indexOf(p.loanId)<0;});save();renderClients(document.getElementById('mainct'),'');toast('Client deleted.');}
+function delClient(id){if(!confirm('Delete this client and all their data?'))return;var lids=[];for(var i=0;i<loans.length;i++){if(loans[i].clientId===id)lids.push(loans[i].id);}clients=clients.filter(function(c){return c.id!==id;});loans=loans.filter(function(l){return l.clientId!==id;});payments=payments.filter(function(p){return lids.indexOf(p.loanId)<0;});
+  // Clean up Firebase
+  if(_fbReady&&_db){
+    _db.collection('salty').doc('clients').collection('c').doc(id).delete().catch(function(e){console.warn('Del client FB:',e);});
+    for(var dli=0;dli<lids.length;dli++){_db.collection('salty').doc('loans').collection('l').doc(lids[dli]).delete().catch(function(e){console.warn('Del loan FB:',e);});}
+  }
+  logAct('act','Deleted client '+id);_markDirty('meta','');save();renderClients(document.getElementById('mainct'),'');toast('Client deleted.');}
 function renderLoans(mc,filter){
   var list=[];
   for(var i=0;i<loans.length;i++){
@@ -3355,7 +3379,7 @@ function viewDisb(id){
     h+='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
     h+='<div style="font-family:monospace;font-weight:800;font-size:15px;color:var(--ok)">'+zmw(dc.amount)+'</div>';
     if(a)h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View App</button>';
-    if(d.status==='pending'&&canDo('credit_north','credit_south','admin'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove</button>';
+    if(d.status==='pending'&&canDo('credit_north','credit_south','admin','assistant'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove</button>';
     h+='</div></div>';
   }
   h+='</div></div>';
@@ -6610,7 +6634,7 @@ function initSig(id){var c=document.getElementById(id);if(!c)return;var ctx=c.ge
 function clearSig(id){var c=document.getElementById(id);if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);}
 function sigHasData(c){if(!c)return false;var d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(var i=3;i<d.length;i+=4){if(d[i]>0)return true;}return false;}
 function getSigData(id){var c=document.getElementById(id);return(c&&sigHasData(c))?c.toDataURL('image/png'):null;}
-function hf(input,previewId,type){var files=Array.from(input.files);for(var i=0;i<files.length;i++){(function(file){var reader=new FileReader();reader.onload=function(ev){pph[type].push({name:file.name,preview:ev.target.result});var el=document.getElementById(previewId);if(!el)return;var item=document.createElement('div');item.className='fitm';item.innerHTML='<span>'+esc(file.name.substring(0,20))+'</span><span style="color:var(--mu)">'+Math.round(file.size/1024)+'KB</span>';el.appendChild(item);};reader.readAsDataURL(file);})(files[i]);}}
+function hf(input,previewId,type){var files=[];try{files=Array.from(input.files);}catch(e){for(var fi=0;fi<input.files.length;fi++)files.push(input.files[fi]);}if(!files.length)return;for(var i=0;i<files.length;i++){(function(file){var reader=new FileReader();reader.onload=function(ev){pph[type].push({name:file.name,preview:ev.target.result});var el=document.getElementById(previewId);if(!el)return;var item=document.createElement('div');item.className='fitm';item.innerHTML='<span>'+esc(file.name.substring(0,20))+'</span><span style="color:var(--ok)">&#10003;</span>';el.appendChild(item);};reader.onerror=function(){var el=document.getElementById(previewId);if(el){var item=document.createElement('div');item.className='fitm';item.innerHTML='<span style="color:var(--r)">'+esc(file.name.substring(0,20))+' — failed</span>';el.appendChild(item);}};reader.readAsDataURL(file);})(files[i]);}}
 function openLbx(src){if(!src)return;document.getElementById('lbximg').src=src;document.getElementById('lbx').classList.add('op');}
 function openImpModal(){document.getElementById('iprev').style.display='none';document.getElementById('icbtn').style.display='none';document.getElementById('impmod').classList.add('op');}
 function handleImpFile(input){parseImpCSV(input.files[0]);}
@@ -7225,6 +7249,10 @@ function saveEditApp(){
 // ---- DELETE APPLICATION ----
 function confirmDelApp(id){
   var a=findA(id);if(!a)return;
+  // Permission check
+  if(canDo('officer')&&a.officerUser!==cu.username){toast('You can only delete your own applications.');return;}
+  if(canDo('officer')&&a.status!=='draft'&&a.status!=='rejected'){toast('You can only delete draft or rejected applications.');return;}
+  if(canDo('manager')&&a.status==='disbursed'){toast('Cannot delete disbursed applications.');return;}
   showDelConfirm(
     'Delete application for <strong>'+esc(a.name)+'</strong>?<br><br>Status: <strong>'+a.status+'</strong>. This cannot be undone.',
     function(){
@@ -7237,7 +7265,9 @@ function confirmDelApp(id){
       _markDirty('meta','');
       save();
       toast('Application deleted.');
-      showTab('applications');
+      if(canDo('officer')) renderMyApps(document.getElementById('mainct'));
+      else if(canDo('manager')) showTab('applications');
+      else showTab('applications');
     }
   );
 }
@@ -7249,7 +7279,12 @@ function confirmDelDisb(id){
     'Delete disbursement list from <strong>'+fmtD(d.date)+'</strong>?<br><br>'+d.clients.length+' client'+(d.clients.length!==1?'s':'')+'. Status: <strong>'+d.status+'</strong>.',
     function(){
       disbursements=disbursements.filter(function(x){return x.id!==id;});
+      // Also delete from Firebase
+      if(_fbReady&&_db){
+        _db.collection('salty').doc('disbursements').collection('d').doc(id).delete().catch(function(e){console.warn('Del disb FB:',e);});
+      }
       logAct('act','Deleted disbursement list '+d.date);
+      _markDirty('meta','');
       save();
       toast('Disbursement deleted.');
       renderDisbursements(document.getElementById('mainct'));
