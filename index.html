@@ -1832,7 +1832,7 @@ function fBr(arr){
   }
   return out;
 }
-function gCS(ld,cid){if(!ld)return{status:'available',daysLeft:0};var ha=null;for(var i=0;i<loans.length;i++){if(loans[i].clientId===cid&&loans[i].status==='Active'){ha=loans[i];break;}}if(ha)return{status:'locked',daysLeft:0};var el=daysB(ld,td_());if(el<COOL)return{status:'cooling',daysLeft:COOL-el};return{status:'available',daysLeft:0};}
+function gCS(ld,cid){if(!ld)return{status:'available',daysLeft:0,elapsed:0,pct:100};var ha=null;for(var i=0;i<loans.length;i++){if(loans[i].clientId===cid&&loans[i].status==='Active'){ha=loans[i];break;}}if(ha){var loanElapsed=daysB(ha.dateGiven,td_());return{status:'locked',daysLeft:0,elapsed:loanElapsed,pct:0,loanId:ha.id,loanDate:ha.dateGiven};}var el=daysB(ld,td_());if(el<COOL){var rem=COOL-el;var pct=Math.round((el/COOL)*100);return{status:'cooling',daysLeft:rem,elapsed:el,pct:pct};}return{status:'available',daysLeft:0,elapsed:el,pct:100};}
 function gTP(lid){
   var l=findL(lid);
   if(l&&l.dayPayments){
@@ -2520,6 +2520,63 @@ function _uploadPhotosInBackground(appId) {
   });
 }
 
+// ===== CC FALLBACK PHOTO UPLOAD =====
+// Allows Credit Controllers to upload photos to an application after submission
+function ccUploadPhotos(appId, field, files) {
+  if (!files || !files.length) return;
+  var a = findA(appId);
+  if (!a) { toast('Application not found.'); return; }
+  var statusEl = document.getElementById('cc-upload-status');
+  if (statusEl) statusEl.innerHTML = '⏳ Uploading ' + files.length + ' photo(s)...';
+
+  var uploads = [];
+  var urls = [];
+  for (var i = 0; i < files.length; i++) {
+    (function(file, idx) {
+      uploads.push(new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var dataUrl = e.target.result;
+          var filename = appId + '_cc_' + field + '_' + idx + '_' + Date.now();
+          _uploadOnePhoto(dataUrl, filename).then(function(url) {
+            if (url) urls.push(url);
+            resolve();
+          });
+        };
+        reader.onerror = function() { resolve(); };
+        reader.readAsDataURL(file);
+      }));
+    })(files[i], i);
+  }
+
+  Promise.all(uploads).then(function() {
+    if (!urls.length) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--r)">❌ Upload failed. Please try again.</span>';
+      return;
+    }
+    // Append to existing photos (don't overwrite)
+    if (!a[field]) a[field] = [];
+    for (var u = 0; u < urls.length; u++) a[field].push(urls[u]);
+    // Also link to client profile if client exists
+    var client = null;
+    for (var ci = 0; ci < clients.length; ci++) {
+      if (clients[ci].sourceAppId === appId) { client = clients[ci]; break; }
+    }
+    if (client && (field === 'businessPhotos' || field === 'homePhotos' || field === 'guarantorPhotos')) {
+      if (!client[field]) client[field] = [];
+      for (var u2 = 0; u2 < urls.length; u2++) client[field].push(urls[u2]);
+      _markDirty('clients', client.id);
+    }
+    _markDirty('applications', appId);
+    _saveDoc('applications', appId, a);
+    save();
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--ok)">✅ ' + urls.length + ' photo(s) uploaded and linked!</span>';
+    toast('📷 ' + urls.length + ' photo(s) uploaded to ' + field.replace(/([A-Z])/g, ' $1').toLowerCase());
+    // Refresh view after short delay
+    setTimeout(function() { viewApp(appId); }, 1500);
+  });
+}
+
 
 function saveApp(isDraft) {
   // Read all form values synchronously first
@@ -2694,15 +2751,36 @@ function viewApp(id,backFn){
   }
   // Section 6 — Photos
   var allPhotos=(a.businessPhotos||[]).concat(a.homePhotos||[]).concat(a.guarantorPhotos||[]);
+  h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128247; Photos ('+allPhotos.length+')</span></div><div style="padding:10px 14px">';
   if(allPhotos.length){
-    h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#128247; Photos ('+allPhotos.length+')</span></div><div style="padding:10px 14px">';
     if(a.businessPhotos&&a.businessPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Business / Collateral</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.businessPhotos.length;pi++){var bsrc=a.businessPhotos[pi].preview||a.businessPhotos[pi];h+='<img src="'+bsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     if(a.homePhotos&&a.homePhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Home / Property</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.homePhotos.length;pi++){var hsrc=a.homePhotos[pi].preview||a.homePhotos[pi];h+='<img src="'+hsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     if(a.guarantorPhotos&&a.guarantorPhotos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Client Portrait / ID</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.guarantorPhotos.length;pi++){var gsrc=a.guarantorPhotos[pi].preview||a.guarantorPhotos[pi];h+='<img src="'+gsrc+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     if(a.g1Photos&&a.g1Photos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Guarantor 1 Photos</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';for(var pi=0;pi<a.g1Photos.length;pi++){var g1src=a.g1Photos[pi].preview||a.g1Photos[pi];h+='<img src="'+g1src+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
     if(a.g2Photos&&a.g2Photos.length){h+='<div style="font-size:11px;font-weight:600;color:var(--mu);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Guarantor 2 Photos</div><div style="display:flex;flex-wrap:wrap;gap:8px">';for(var pi=0;pi<a.g2Photos.length;pi++){var g2src=a.g2Photos[pi].preview||a.g2Photos[pi];h+='<img src="'+g2src+'" style="height:90px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;object-fit:cover" onclick="lbOpen(this.src)">';}h+='</div>';}
-    h+='</div></div>';
+  } else {
+    h+='<div style="text-align:center;padding:12px;color:var(--mu);font-size:12px">No photos attached</div>';
   }
+  // CC / Admin photo upload fallback
+  if(canDo('admin','credit_north','credit_south')&&a.status!=='rejected'){
+    h+='<div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:12px">';
+    h+='<div style="font-size:11px;font-weight:600;color:var(--r2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">&#128228; Upload Photos (CC Fallback)</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    var ccPhotoTypes=[{field:'businessPhotos',label:'Business / Collateral'},{field:'homePhotos',label:'Home / Property'},{field:'guarantorPhotos',label:'Client Portrait / ID'},{field:'g1Photos',label:'Guarantor 1'},{field:'g2Photos',label:'Guarantor 2'}];
+    for(var pti=0;pti<ccPhotoTypes.length;pti++){
+      var pt=ccPhotoTypes[pti],existCount=(a[pt.field]||[]).length;
+      h+='<div class="uz" style="padding:10px;font-size:11px">';
+      h+='<div style="font-size:16px;margin-bottom:3px">&#128247;</div>';
+      h+=esc(pt.label);
+      if(existCount)h+=' <span style="color:var(--ok)">('+existCount+')</span>';
+      h+='<input type="file" accept="image/*" multiple onchange="ccUploadPhotos(\''+a.id+'\',\''+pt.field+'\',this.files)">';
+      h+='</div>';
+    }
+    h+='</div>';
+    h+='<div id="cc-upload-status" style="font-size:11px;color:var(--mu);margin-top:6px"></div>';
+    h+='</div>';
+  }
+  h+='</div></div>';
   // Section 7 — Client Signature
   if(a.clientSig){
     h+='<div class="cd" style="margin-bottom:12px"><div class="cdh"><span class="cdt">&#9997; Client Signature</span></div><div style="padding:12px 14px"><img src="'+a.clientSig+'" style="max-width:100%;height:80px;border:1px solid var(--bd);border-radius:8px"></div></div>';
@@ -2891,17 +2969,17 @@ function approveDisb(id, seriesLetter){
   if(zeroAmounts.length){toast('Cannot approve — missing loan amount for: '+zeroAmounts.join(', '));return;}
   d.status='approved';d.approvedBy=cu.display;d.approvedAt=now_();d.series=seriesLetter;
   _markDirty('disbursements', d.id); // ← mark disbursement dirty so status saves to Firebase
-  // Find next available number for this series (shared across all branches)
-  var usedNums={};
+  // Build per-branch used number maps for this series letter
+  var usedNumsByBranch={};
   for(var i=0;i<clients.length;i++){
     var cc=clients[i].code||'';
     if(cc.charAt(0)===seriesLetter){
+      var cb=(clients[i].branch||'').toLowerCase().trim();
+      if(!usedNumsByBranch[cb]) usedNumsByBranch[cb]={};
       var n=parseInt(cc.slice(1));
-      if(!isNaN(n)) usedNums[n]=true;
+      if(!isNaN(n)) usedNumsByBranch[cb][n]=true;
     }
   }
-  var nextNum=1;
-  while(usedNums[nextNum]) nextNum++;
   var created=0;
   for(var i=0;i<d.clients.length;i++){
     var dc=d.clients[i],a=findA(dc.appId);
@@ -2914,11 +2992,14 @@ function approveDisb(id, seriesLetter){
       }
     }
     if(!c){
-      // New client — assign next series code
-      while(usedNums[nextNum]) nextNum++;
-      var clientCode = seriesLetter + nextNum;
-      usedNums[nextNum] = true;
-      nextNum++;
+      // New client — assign next series code PER BRANCH
+      var clientBranch=(a.branch||'').toLowerCase().trim();
+      if(!usedNumsByBranch[clientBranch]) usedNumsByBranch[clientBranch]={};
+      var brNums=usedNumsByBranch[clientBranch];
+      var brNextNum=1;
+      while(brNums[brNextNum]) brNextNum++;
+      var clientCode = seriesLetter + brNextNum;
+      brNums[brNextNum] = true;
       c={id:gCid(),code:clientCode,sourceAppId:a.id,name:a.name,nrc:a.nrc||'',phone:a.phone||'',
         branch:a.branch,address:a.address||'',occupation:a.occupation||'',
         gname:(a.g1&&a.g1.name)||'',gnrc:(a.g1&&a.g1.nrc)||'',gphone:(a.g1&&a.g1.phone)||'',
@@ -3046,10 +3127,10 @@ function renderClients(mc,filter){
   }
   var h=branchWarn+'<div class="cd"><div class="cdh"><span class="cdt">Clients ('+list.length+(abr!=='ALL'?' in '+abr:'')+')</span><div style="display:flex;gap:6px;flex-wrap:wrap"><input class="si2" placeholder="Search..." oninput="renderClients(document.getElementById(\'mainct\'),this.value.toLowerCase())">'+(canDo('admin','credit_north','credit_south')?'<button class="btn btg bts" onclick="openImpModal()">Import CSV</button>':'')+'</div></div><div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Branch</th><th>Collateral</th><th>Active Loan</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!list.length)h+='<tr><td colspan="7"><div class="es"><div class="ei">&#128101;</div><div class="et">No clients found in '+(abr==='ALL'?'any branch':'the '+abr+' branch')+'</div><div style="font-size:12px;color:var(--mu);margin-top:6px">'+(abr!=='ALL'?'<button class="btn btg bts" onclick="setBranchAll()">Show All Branches</button>':'Click &quot;+ Add Client&quot; or Import CSV to get started')+'</div></div></td></tr>';
-  for(var i=0;i<list.length;i++){var c=list[i],cl=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){cl=loans[j];break;}}var cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':cs.status==='cooling'?'Cooling '+cs.daysLeft+'d':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';h+='<tr><td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</td><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td>'+(cl?'<span style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(cl.amountGiven)+'</span>':'<span style="color:var(--mu);font-size:11px">None</span>')+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="display:flex;gap:3px"><button class="ab" onclick="viewClient(\''+c.id+'\')">View</button>'+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:var(--ok)" onclick="issueLoanTo(\''+c.id+'\')">Loan</button>':'')+(canDo('admin')?'<button class="ab" style="color:var(--r)" onclick="delClient(\''+c.id+'\')">&#10005;</button>':'')+'</td></tr>';}
+  for(var i=0;i<list.length;i++){var c=list[i],cl=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){cl=loans[j];break;}}var cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';if(cs.status==='cooling')csl='Cooling '+cs.daysLeft+'d';h+='<tr><td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</td><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td>'+(cl?'<span style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(cl.amountGiven)+'</span>':'<span style="color:var(--mu);font-size:11px">None</span>')+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="display:flex;gap:3px"><button class="ab" onclick="viewClient(\''+c.id+'\')">View</button>'+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:var(--ok)" onclick="issueLoanTo(\''+c.id+'\')">Loan</button>':'')+(canDo('admin')?'<button class="ab" style="color:var(--r)" onclick="delClient(\''+c.id+'\')">&#10005;</button>':'')+'</td></tr>';}
   h+='</tbody></table></div></div>';mc.innerHTML=h;
 }
-function viewClient(id){var c=findC(id);if(!c)return;var cl=[],tp=0;for(var i=0;i<loans.length;i++){if(loans[i].clientId===id){cl.push(loans[i]);tp+=gTP(loans[i].id);}}var cs=gCS(c.collateralLockedDate,id),mc=document.getElementById('mainct');var h='<button class="bk" onclick="renderClients(document.getElementById(\'mainct\'),\'\')">&#8592; Back to Clients</button><div style="margin-bottom:12px"><span style="font-family:monospace;font-size:11px;color:var(--r)">'+esc(c.code||'')+'</span><h2 style="font-size:20px;color:var(--r2);font-weight:700;margin-top:3px">'+esc(c.name)+'</h2><div style="font-size:12px;color:var(--mu)">'+esc(c.branch)+' &#183; Registered '+fmtD(c.regDate)+'</div></div>';h+='<div class="fr" style="margin-bottom:12px"><div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Personal Details</span></div><div class="cdb"><div class="rm"><span class="rml">NRC</span><span class="rmv">'+esc(c.nrc||'&#8212;')+'</span></div><div class="rm"><span class="rml">Phone</span><span class="rmv">'+esc(c.phone)+'</span></div><div class="rm"><span class="rml">Occupation</span><span class="rmv">'+esc(c.occupation||'&#8212;')+'</span></div></div></div>';h+='<div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Collateral</span></div><div class="cdb">';if(cs.status==='locked')h+='<div style="background:rgba(139,90,43,.08);border:1px solid rgba(139,90,43,.3);border-radius:8px;padding:10px;font-weight:600;color:#8b5a2b;margin-bottom:8px">&#128274; Locked &#8212; Active Loan</div>';else if(cs.status==='cooling'){var pct=Math.round(((COOL-cs.daysLeft)/COOL)*100);h+='<div style="border:1px solid rgba(26,82,118,.25);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:600;color:var(--in);margin-bottom:5px">Cooling &#8212; '+cs.daysLeft+'d left</div><div class="pb"><div class="pf" style="width:'+pct+'%"></div></div></div>';}else h+='<div style="background:rgba(30,132,73,.07);border:1px solid rgba(30,132,73,.25);border-radius:8px;padding:10px;font-weight:600;color:var(--ok);margin-bottom:8px">&#10003; Available</div>';h+='<div class="rm"><span class="rml">Items</span><span class="rmv" style="font-size:11px;max-width:140px;text-align:right">'+esc(c.colItems||'&#8212;')+'</span></div></div></div></div>';if(canDo('admin','credit_north','credit_south'))h+='<div style="margin-bottom:12px"><button class="btn btr" onclick="issueLoanTo(\''+c.id+'\')">+ Issue Loan</button></div>';h+='<div class="cd"><div class="cdh"><span class="cdt">Loan History ('+cl.length+') &#8212; Paid: '+zmw(tp)+'</span></div><div class="tw"><table><thead><tr><th>Amt Given</th><th>Amt Due</th><th>Date</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>';if(!cl.length)h+='<tr><td colspan="7"><div class="es" style="padding:12px"><div class="et">No loans yet</div></div></td></tr>';for(var i=0;i<cl.length;i++){var l=cl[i],ltp=gTP(l.id),bal=Math.max(0,(l.amountDue||0)-ltp);h+='<tr><td>'+zmw(l.amountGiven)+'</td><td>'+zmw(l.amountDue)+'</td><td style="font-size:11px">'+fmtD(l.dateGiven)+'</td><td style="color:var(--ok);font-family:monospace;font-size:11px">'+zmw(ltp)+'</td><td style="color:var(--r);font-family:monospace;font-size:11px">'+zmw(bal)+'</td><td><span class="bg '+(l.status==='Active'?'bgr':l.status==='Completed'?'bgg':'bgx')+'">'+esc(l.status)+'</span></td><td><button class="ab" onclick="viewLoan(\''+l.id+'\')">View</button></td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
+function viewClient(id){var c=findC(id);if(!c)return;var cl=[],tp=0;for(var i=0;i<loans.length;i++){if(loans[i].clientId===id){cl.push(loans[i]);tp+=gTP(loans[i].id);}}var cs=gCS(c.collateralLockedDate,id),mc=document.getElementById('mainct');var h='<button class="bk" onclick="renderClients(document.getElementById(\'mainct\'),\'\')">&#8592; Back to Clients</button><div style="margin-bottom:12px"><span style="font-family:monospace;font-size:11px;color:var(--r)">'+esc(c.code||'')+'</span><h2 style="font-size:20px;color:var(--r2);font-weight:700;margin-top:3px">'+esc(c.name)+'</h2><div style="font-size:12px;color:var(--mu)">'+esc(c.branch)+' &#183; Registered '+fmtD(c.regDate)+'</div></div>';h+='<div class="fr" style="margin-bottom:12px"><div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Personal Details</span></div><div class="cdb"><div class="rm"><span class="rml">NRC</span><span class="rmv">'+esc(c.nrc||'&#8212;')+'</span></div><div class="rm"><span class="rml">Phone</span><span class="rmv">'+esc(c.phone)+'</span></div><div class="rm"><span class="rml">Occupation</span><span class="rmv">'+esc(c.occupation||'&#8212;')+'</span></div></div></div>';h+='<div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Collateral</span></div><div class="cdb">';if(cs.status==='locked')h+='<div style="background:rgba(192,57,43,.06);border:1px solid rgba(192,57,43,.2);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:700;color:var(--r);font-size:13px">&#128274; Locked — Active Loan</div><div style="font-size:11px;color:var(--mu);margin-top:3px">Day '+cs.elapsed+' since disbursement</div></div>';else if(cs.status==='cooling'){var pct=cs.pct||0;h+='<div style="border:1px solid rgba(26,82,118,.25);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:700;color:var(--in);margin-bottom:2px">&#9203; Cooling — '+cs.daysLeft+' days remaining</div><div style="font-size:11px;color:var(--mu);margin-bottom:6px">Day '+cs.elapsed+' of '+COOL+' ('+pct+'% complete)</div><div class="pb" style="height:6px"><div class="pf" style="width:'+pct+'%"></div></div><div style="font-size:10px;color:var(--mu);margin-top:4px">Locked since: '+fmtD(c.collateralLockedDate)+'</div></div>';}else h+='<div style="background:rgba(30,132,73,.07);border:1px solid rgba(30,132,73,.25);border-radius:8px;padding:10px;font-weight:600;color:var(--ok);margin-bottom:8px">&#10003; Available — 90-day lock completed</div>';h+='<div class="rm"><span class="rml">Items</span><span class="rmv" style="font-size:11px;max-width:140px;text-align:right">'+esc(c.colItems||'&#8212;')+'</span></div></div></div></div>';if(canDo('admin','credit_north','credit_south'))h+='<div style="margin-bottom:12px"><button class="btn btr" onclick="issueLoanTo(\''+c.id+'\')">+ Issue Loan</button></div>';h+='<div class="cd"><div class="cdh"><span class="cdt">Loan History ('+cl.length+') &#8212; Paid: '+zmw(tp)+'</span></div><div class="tw"><table><thead><tr><th>Amt Given</th><th>Amt Due</th><th>Date</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>';if(!cl.length)h+='<tr><td colspan="7"><div class="es" style="padding:12px"><div class="et">No loans yet</div></div></td></tr>';for(var i=0;i<cl.length;i++){var l=cl[i],ltp=gTP(l.id),bal=Math.max(0,(l.amountDue||0)-ltp);h+='<tr><td>'+zmw(l.amountGiven)+'</td><td>'+zmw(l.amountDue)+'</td><td style="font-size:11px">'+fmtD(l.dateGiven)+'</td><td style="color:var(--ok);font-family:monospace;font-size:11px">'+zmw(ltp)+'</td><td style="color:var(--r);font-family:monospace;font-size:11px">'+zmw(bal)+'</td><td><span class="bg '+(l.status==='Active'?'bgr':l.status==='Completed'?'bgg':'bgx')+'">'+esc(l.status)+'</span></td><td><button class="ab" onclick="viewLoan(\''+l.id+'\')">View</button></td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
 function delClient(id){if(!confirm('Delete this client and all their data?'))return;var lids=[];for(var i=0;i<loans.length;i++){if(loans[i].clientId===id)lids.push(loans[i].id);}clients=clients.filter(function(c){return c.id!==id;});loans=loans.filter(function(l){return l.clientId!==id;});payments=payments.filter(function(p){return lids.indexOf(p.loanId)<0;});save();renderClients(document.getElementById('mainct'),'');toast('Client deleted.');}
 function renderLoans(mc,filter){
   var list=[];
@@ -3761,7 +3842,98 @@ function handleDailyCSV(input) {
   reader.readAsText(file);
 }
 
-function renderCollateral(mc){var list=fBr(clients).filter(function(c){return c.collateralLockedDate;});var h='<div class="cd"><div class="cdh"><span class="cdt">Collateral Registry</span></div><div class="tw"><table><thead><tr><th>Client</th><th>Branch</th><th>Items</th><th>Locked</th><th>Status</th><th>Days</th></tr></thead><tbody>';if(!list.length)h+='<tr><td colspan="6"><div class="es"><div class="ei">&#127968;</div><div class="et">No collateral records</div></div></td></tr>';for(var i=0;i<list.length;i++){var c=list[i],cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':cs.status==='cooling'?'Cooling':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';h+='<tr><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td style="font-size:11px;color:var(--mu)">'+fmtD(c.collateralLockedDate)+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="font-family:monospace;font-size:11px">'+(cs.status==='cooling'?cs.daysLeft+'d':cs.status==='locked'?'Active':'Ready')+'</td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
+function renderCollateral(mc){
+  var allCol=fBr(clients).filter(function(c){return c.collateralLockedDate;});
+  // Separate into categories
+  var locked=[],cooling=[],available=[];
+  for(var i=0;i<allCol.length;i++){
+    var c=allCol[i],cs=gCS(c.collateralLockedDate,c.id);
+    c._cs=cs; // cache
+    if(cs.status==='locked')locked.push(c);
+    else if(cs.status==='cooling')cooling.push(c);
+    else available.push(c);
+  }
+  // Sort cooling by days left ascending (closest to release first)
+  cooling.sort(function(a,b){return a._cs.daysLeft-b._cs.daysLeft;});
+
+  var h='';
+  // Summary cards
+  h+='<div class="sg" style="margin-bottom:14px">';
+  h+='<div class="sc c2"><div class="si">&#128274;</div><div class="sl">Locked (Active Loan)</div><div class="sv">'+locked.length+'</div></div>';
+  h+='<div class="sc c5"><div class="si">&#9203;</div><div class="sl">Cooling Period</div><div class="sv">'+cooling.length+'</div></div>';
+  h+='<div class="sc c4"><div class="si">&#9989;</div><div class="sl">Available</div><div class="sv">'+available.length+'</div></div>';
+  h+='</div>';
+
+  // Locked section
+  if(locked.length){
+    h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">&#128274; Locked — Active Loan ('+locked.length+')</span></div><div class="cdb">';
+    for(var i=0;i<locked.length;i++){
+      var c=locked[i],cs=c._cs,isN=NORTH.indexOf(c.branch)>=0;
+      var loan=cs.loanId?findL(cs.loanId):null;
+      var tp=loan?gTP(loan.id):0,bal=loan?Math.max(0,(loan.amountDue||0)-tp):0;
+      var lpct=loan&&loan.amountDue>0?Math.min(100,Math.round(tp/loan.amountDue*100)):0;
+      h+='<div style="border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:8px;background:rgba(192,57,43,.03)">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">';
+      h+='<div><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong>';
+      h+=' <span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span>';
+      h+=' <span style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</span>';
+      h+='<div style="font-size:11px;color:var(--mu);margin-top:3px">'+esc(c.colItems||'No items listed')+'</div></div>';
+      h+='<div style="text-align:right"><span class="bg bgr">LOCKED</span>';
+      h+='<div style="font-size:10px;color:var(--mu);margin-top:3px">Day '+cs.elapsed+' of loan</div></div></div>';
+      if(loan){
+        h+='<div style="margin-top:8px;font-size:11px;display:flex;gap:16px;flex-wrap:wrap;color:var(--mu)">';
+        h+='<span>Loan: <strong style="color:var(--ok)">'+zmw(loan.amountGiven)+'</strong></span>';
+        h+='<span>Paid: <strong style="color:var(--ok)">'+zmw(tp)+'</strong> ('+lpct+'%)</span>';
+        h+='<span>Balance: <strong style="color:var(--r)">'+zmw(bal)+'</strong></span></div>';
+        h+='<div class="pb" style="margin-top:6px;height:4px"><div class="pf" style="width:'+lpct+'%;background:linear-gradient(90deg,var(--r2),var(--r))"></div></div>';
+      }
+      h+='</div>';
+    }
+    h+='</div></div>';
+  }
+
+  // Cooling section
+  if(cooling.length){
+    h+='<div class="cd" style="margin-bottom:14px"><div class="cdh"><span class="cdt">&#9203; Cooling Period — 90 Day Lock ('+cooling.length+')</span></div><div class="cdb">';
+    for(var i=0;i<cooling.length;i++){
+      var c=cooling[i],cs=c._cs,isN=NORTH.indexOf(c.branch)>=0;
+      var pct=cs.pct||0;
+      var barColor=pct>=75?'var(--ok)':pct>=40?'var(--wn)':'var(--in)';
+      h+='<div style="border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:8px;background:rgba(26,82,118,.03)">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">';
+      h+='<div><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong>';
+      h+=' <span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span>';
+      h+=' <span style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</span>';
+      h+='<div style="font-size:11px;color:var(--mu);margin-top:3px">'+esc(c.colItems||'No items listed')+'</div></div>';
+      h+='<div style="text-align:right"><span class="bg bgb">COOLING</span>';
+      h+='<div style="font-size:18px;font-weight:800;color:var(--in);margin-top:2px">'+cs.daysLeft+'<span style="font-size:10px;font-weight:400"> days left</span></div></div></div>';
+      h+='<div style="margin-top:8px">';
+      h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mu);margin-bottom:3px"><span>Day '+cs.elapsed+' of '+COOL+'</span><span>'+pct+'% complete</span></div>';
+      h+='<div class="pb" style="height:6px"><div class="pf" style="width:'+pct+'%;background:'+barColor+'"></div></div>';
+      h+='<div style="font-size:10px;color:var(--mu);margin-top:4px">Locked: '+fmtD(c.collateralLockedDate)+'</div>';
+      h+='</div></div>';
+    }
+    h+='</div></div>';
+  }
+
+  // Available section
+  if(available.length){
+    h+='<div class="cd"><div class="cdh"><span class="cdt">&#9989; Available for Re-use ('+available.length+')</span></div><div class="tw"><table><thead><tr><th>Client</th><th>Code</th><th>Branch</th><th>Items</th><th>Last Locked</th><th>Status</th></tr></thead><tbody>';
+    for(var i=0;i<available.length;i++){
+      var c=available[i],isN=NORTH.indexOf(c.branch)>=0;
+      h+='<tr><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td>';
+      h+='<td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</td>';
+      h+='<td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td>';
+      h+='<td style="font-size:11px;color:var(--mu);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'—')+'</td>';
+      h+='<td style="font-size:11px;color:var(--mu)">'+fmtD(c.collateralLockedDate)+'</td>';
+      h+='<td><span class="bg bgg" style="font-size:8px">Available</span></td></tr>';
+    }
+    h+='</tbody></table></div></div>';
+  }
+
+  if(!allCol.length)h='<div class="es"><div class="ei">&#127968;</div><div class="et">No collateral records</div></div>';
+  mc.innerHTML=h;
+}
 
 // ── REPORTS ────────────────────────────────────────────────────────────────
 
