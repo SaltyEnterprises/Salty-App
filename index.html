@@ -2986,80 +2986,101 @@ function approveDisb(id, seriesLetter){
   for(var i=0;i<d.clients.length;i++){if(!(d.clients[i].amount>0))zeroAmounts.push(d.clients[i].name);}
   if(zeroAmounts.length){toast('Cannot approve — missing loan amount for: '+zeroAmounts.join(', '));return;}
   d.status='approved';d.approvedBy=cu.display;d.approvedAt=now_();d.series=seriesLetter;
-  _markDirty('disbursements', d.id); // ← mark disbursement dirty so status saves to Firebase
-  // Build per-branch used number maps for this series letter
-  var usedNumsByBranch={};
-  for(var i=0;i<clients.length;i++){
-    var cc=clients[i].code||'';
-    if(cc.charAt(0)===seriesLetter){
-      var cb=(clients[i].branch||'').toLowerCase().trim();
-      if(!usedNumsByBranch[cb]) usedNumsByBranch[cb]={};
-      var n=parseInt(cc.slice(1));
-      if(!isNaN(n)) usedNumsByBranch[cb][n]=true;
-    }
-  }
-  var created=0;
+  _markDirty('disbursements', d.id);
+
+  // ── GROUP CLIENTS BY BRANCH, preserving disbursement list order ──
+  var branchGroups={};
   for(var i=0;i<d.clients.length;i++){
-    var dc=d.clients[i],a=findA(dc.appId);
-    if(!a){console.warn('Application not found for disbursement client:',dc.name,dc.appId);continue;}
-    // Find or create client record
-    var c=null;
-    for(var j=0;j<clients.length;j++){
-      if(clients[j].sourceAppId===a.id||(clients[j].name===a.name&&clients[j].branch===a.branch)){
-        c=clients[j];break;
+    var dc=d.clients[i], a=findA(dc.appId);
+    var br=(a?a.branch:dc.branch)||'Unknown';
+    if(!branchGroups[br]) branchGroups[br]=[];
+    branchGroups[br].push({dc:dc, a:a, disbIndex:i});
+  }
+
+  // ── For each branch, find highest existing code number for this series ──
+  var existingMaxByBranch={};
+  for(var ci=0;ci<clients.length;ci++){
+    var cc=clients[ci].code||'';
+    if(cc.charAt(0)===seriesLetter){
+      var cb=(clients[ci].branch||'').toLowerCase().trim();
+      var n=parseInt(cc.slice(1));
+      if(!isNaN(n)){
+        if(!existingMaxByBranch[cb]||n>existingMaxByBranch[cb]) existingMaxByBranch[cb]=n;
       }
     }
-    if(!c){
-      // New client — assign next series code PER BRANCH
-      var clientBranch=(a.branch||'').toLowerCase().trim();
-      if(!usedNumsByBranch[clientBranch]) usedNumsByBranch[clientBranch]={};
-      var brNums=usedNumsByBranch[clientBranch];
-      var brNextNum=1;
-      while(brNums[brNextNum]) brNextNum++;
-      var clientCode = seriesLetter + brNextNum;
-      brNums[brNextNum] = true;
-      c={id:gCid(),code:clientCode,sourceAppId:a.id,name:a.name,nrc:a.nrc||'',phone:a.phone||'',
-        branch:a.branch,address:a.address||'',occupation:a.occupation||'',
-        gname:(a.g1&&a.g1.name)||'',gnrc:(a.g1&&a.g1.nrc)||'',gphone:(a.g1&&a.g1.phone)||'',
-        grel:'Guarantor',gaddress:(a.g1&&a.g1.ha)||'',
-        colType:a.colType||'Appliances',colValue:'',
-        colItems:a.colRows?a.colRows.map(function(r){return r.item;}).join(', '):'',
-        colDesc:'',officerUser:a.officerUser||'',officerName:a.officerName||'',
-        businessPhotos:a.businessPhotos||[],homePhotos:a.homePhotos||[],guarantorPhotos:a.guarantorPhotos||[],
-        collateralLockedDate:d.date,regDate:d.date};
-      clients.push(c);
-    }
-    _markDirty('clients', c.id);
-    // ── DUPLICATE PREVENTION: skip if loan already exists for this SAME application ──
-    var loanExists=false;
-    for(var lx=0;lx<loans.length;lx++){
-      if(loans[lx].sourceAppId===a.id){loanExists=true;break;}
-    }
-    if(loanExists){a.status='disbursed';continue;}
-    // Create loan
-    var newLoan={id:gLid(),code:c.code,clientId:c.id,sourceAppId:a.id,
-      amountGiven:dc.amount||0,interest:(dc.amount||0)*0.4,amountDue:(dc.amount||0)*1.4,
-      dailyPayment:dc.amount*1.4/25,dateGiven:d.date,status:'Active',
-      colItems:c.colItems||'',series:seriesLetter,dayDates:[],dayPayments:[]};
-    // Generate 25 working day dates starting the NEXT working day after disbursement
-    var dd=new Date(d.date+'T00:00:00');
-    dd.setDate(dd.getDate()+1);
-    var dayDates=[];
-    while(dayDates.length<25){
-      var dow=dd.getDay();
-      if(dow!==0&&dow!==6)dayDates.push(dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2));
-      dd.setDate(dd.getDate()+1);
-    }
-    newLoan.dayDates=dayDates;
-    newLoan.dayPayments=new Array(25).fill(null);
-    loans.push(newLoan);
-    _markDirty('loans', newLoan.id); // ← mark loan dirty
-    c.collateralLockedDate=d.date;
-    a.status='disbursed';
-    _markDirty('applications', a.id); // ← mark application dirty
-    created++;
   }
-  _markDirty('meta',''); // ← mark meta dirty for counters
+
+  var created=0;
+  var branchNames=Object.keys(branchGroups);
+  for(var bi=0;bi<branchNames.length;bi++){
+    var br=branchNames[bi];
+    var brKey=br.toLowerCase().trim();
+    var grp=branchGroups[br];
+    // Start numbering from 1, or after existing codes for this branch+series
+    var nextNum=(existingMaxByBranch[brKey]||0)+1;
+
+    for(var gi=0;gi<grp.length;gi++){
+      var dc=grp[gi].dc, a=grp[gi].a, disbIdx=grp[gi].disbIndex;
+      if(!a){console.warn('Application not found:',dc.name,dc.appId);continue;}
+
+      // Find or create client record
+      var c=null;
+      for(var j=0;j<clients.length;j++){
+        if(clients[j].sourceAppId===a.id||(clients[j].name===a.name&&clients[j].branch===a.branch)){
+          c=clients[j];break;
+        }
+      }
+      if(!c){
+        var clientCode = seriesLetter + nextNum;
+        nextNum++;
+        c={id:gCid(),code:clientCode,sourceAppId:a.id,name:a.name,nrc:a.nrc||'',phone:a.phone||'',
+          branch:a.branch,address:a.address||'',occupation:a.occupation||'',
+          gname:(a.g1&&a.g1.name)||'',gnrc:(a.g1&&a.g1.nrc)||'',gphone:(a.g1&&a.g1.phone)||'',
+          grel:'Guarantor',gaddress:(a.g1&&a.g1.ha)||'',
+          colType:a.colType||'Appliances',colValue:'',
+          colItems:a.colRows?a.colRows.map(function(r){return r.item;}).join(', '):'',
+          colDesc:'',officerUser:a.officerUser||'',officerName:a.officerName||'',
+          businessPhotos:a.businessPhotos||[],homePhotos:a.homePhotos||[],guarantorPhotos:a.guarantorPhotos||[],
+          collateralLockedDate:d.date,regDate:d.date,disbOrder:disbIdx};
+        clients.push(c);
+      } else {
+        // Update disbOrder on existing client
+        c.disbOrder=disbIdx;
+      }
+      _markDirty('clients', c.id);
+
+      // Duplicate prevention
+      var loanExists=false;
+      for(var lx=0;lx<loans.length;lx++){
+        if(loans[lx].sourceAppId===a.id){loanExists=true;break;}
+      }
+      if(loanExists){a.status='disbursed';continue;}
+
+      // Create loan — code matches client code, store disbOrder
+      var newLoan={id:gLid(),code:c.code,clientId:c.id,sourceAppId:a.id,
+        amountGiven:dc.amount||0,interest:(dc.amount||0)*0.4,amountDue:(dc.amount||0)*1.4,
+        dailyPayment:dc.amount*1.4/25,dateGiven:d.date,status:'Active',
+        colItems:c.colItems||'',series:seriesLetter,disbOrder:disbIdx,dayDates:[],dayPayments:[]};
+      // Generate 25 working day dates
+      var dd=new Date(d.date+'T00:00:00');
+      dd.setDate(dd.getDate()+1);
+      var dayDates=[];
+      while(dayDates.length<25){
+        var dow=dd.getDay();
+        if(dow!==0&&dow!==6)dayDates.push(dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2));
+        dd.setDate(dd.getDate()+1);
+      }
+      newLoan.dayDates=dayDates;
+      newLoan.dayPayments=new Array(25).fill(null);
+      loans.push(newLoan);
+      _markDirty('loans', newLoan.id);
+      c.collateralLockedDate=d.date;
+      a.status='disbursed';
+      _markDirty('applications', a.id);
+      created++;
+    }
+  }
+  _markDirty('meta','');
   logAct('act','Approved disbursement '+seriesLetter+'-series — '+created+' loans activated');
   save();
   updateBadges();
@@ -3068,8 +3089,68 @@ function approveDisb(id, seriesLetter){
 }
 function reprocessDisb(id){
   var d=findD(id);if(!d||!d.series)return;
-  // Re-run approveDisb with the existing series letter — it will skip clients that already have loans
   approveDisb(id, d.series);
+}
+
+// ── RE-SEQUENCE CODES: Fix codes for a series to start from 1 per branch ──
+function resequenceSeries(disbId){
+  var d=findD(disbId);
+  if(!d||!d.series){toast('No series found.');return;}
+  var seriesLetter=d.series.toUpperCase();
+  if(!confirm('Re-sequence all '+seriesLetter+'-series codes?\n\nThis will renumber clients per branch starting from '+seriesLetter+'1.\nThe order follows the disbursement list.\n\nAll payment data is preserved.')){return;}
+
+  // Build ordered list from disbursement, grouped by branch
+  var branchGroups={};
+  for(var i=0;i<d.clients.length;i++){
+    var dc=d.clients[i];
+    var br=dc.branch||'Unknown';
+    if(!branchGroups[br]) branchGroups[br]=[];
+    branchGroups[br].push({dc:dc, disbIndex:i});
+  }
+
+  var updated=0;
+  var branchNames=Object.keys(branchGroups);
+  for(var bi=0;bi<branchNames.length;bi++){
+    var br=branchNames[bi];
+    var grp=branchGroups[br];
+    var nextNum=1;
+
+    for(var gi=0;gi<grp.length;gi++){
+      var dc=grp[gi].dc;
+      var disbIdx=grp[gi].disbIndex;
+      var newCode=seriesLetter+nextNum;
+      nextNum++;
+
+      // Find the client
+      var c=null;
+      for(var ci=0;ci<clients.length;ci++){
+        if(clients[ci].sourceAppId===dc.appId||(clients[ci].name===dc.name&&(clients[ci].branch||'').toLowerCase().trim()===br.toLowerCase().trim())){
+          c=clients[ci];break;
+        }
+      }
+      if(!c) continue;
+
+      c.code=newCode;
+      c.disbOrder=disbIdx;
+      _markDirty('clients',c.id);
+
+      // Update all loans for this client with matching series
+      for(var li=0;li<loans.length;li++){
+        if(loans[li].clientId===c.id&&(loans[li].series||'').toUpperCase()===seriesLetter){
+          loans[li].code=newCode;
+          loans[li].disbOrder=disbIdx;
+          _markDirty('loans',loans[li].id);
+        }
+      }
+      updated++;
+    }
+  }
+
+  logAct('act','Re-sequenced '+seriesLetter+'-series: '+updated+' clients renumbered per branch');
+  _markDirty('meta','');
+  save();
+  toast('Done! '+updated+' clients renumbered ('+seriesLetter+'1, '+seriesLetter+'2... per branch)');
+  viewDisb(disbId);
 }
 function printDisb(id){
   var d=findD(id);if(!d)return;
@@ -3413,6 +3494,12 @@ function viewDisb(id){
       h+='<div style="margin-top:10px;padding:10px;background:rgba(212,130,10,.12);border:1px solid var(--wn);border-radius:8px"><div style="font-weight:700;color:var(--wn);margin-bottom:6px">⚠️ '+_missingLoans+' client'+(_missingLoans>1?'s':'')+' missing loans</div>';
       h+='<button class="btn btw" onclick="reprocessDisb(\''+d.id+'\')">🔄 Re-process Missing Loans</button></div>';
     }
+    // Always show re-sequence button for CC/admin on approved disbursements
+    if(canDo('admin','credit_north','credit_south')){
+      h+='<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
+      h+='<button class="btn bts" style="background:var(--in);color:#fff" onclick="resequenceSeries(\''+d.id+'\')">🔢 Re-sequence Codes ('+esc(d.series||'?')+'1, '+esc(d.series||'?')+'2... per branch)</button>';
+      h+='</div>';
+    }
     h+='</div>';
   }
   if(d.status==='rejected'){
@@ -3420,26 +3507,68 @@ function viewDisb(id){
     h+='<div style="font-weight:700;color:var(--r);font-size:15px">&#10007; REJECTED</div>';
     h+='<div style="font-size:12px;color:var(--mu)">By '+esc(d.rejectedBy||'')+'</div></div>';
   }
-  // Client list
-  h+='<div class="cd"><div class="cdh"><span class="cdt">Clients in this List ('+d.clients.length+')</span></div>';
-  h+='<div class="cdb">';
-  for(var i=0;i<d.clients.length;i++){
-    var dc=d.clients[i],a=findA(dc.appId);
-    var isN=NORTH.indexOf(dc.branch)>=0;
-    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)">';
-    h+='<div><div style="font-weight:700;font-size:14px">'+esc(dc.name)+'</div>';
-    h+='<div style="font-size:11px;color:var(--mu)">NRC: '+esc(dc.nrc||'—')+'</div>';
-    h+='<div style="font-size:11px;color:var(--mu)">📞 '+esc(dc.phone||a&&a.phone||'—')+'</div>';
-    if(dc.collateral||(a&&a.colRows&&a.colRows.length))h+='<div style="font-size:11px;color:var(--wn)">🔒 '+esc(dc.collateral||(a&&a.colRows?a.colRows.map(function(r){return r.item;}).join(', '):''))+'</div>';
-    h+='<div><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(dc.branch)+'</span></div></div>';
-    h+='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
-    h+='<div style="font-family:monospace;font-weight:800;font-size:15px;color:var(--ok)">'+zmw(dc.amount)+'</div>';
-    if(a)h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View App</button>';
-    if(d.status==='pending'&&canDo('credit_north','credit_south','admin','assistant'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove</button>';
-    if(d.status==='approved'&&canDo('credit_north','credit_south','admin'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove & Delete Loan</button>';
+  // Client list — group by branch for approved disbursements
+  if(d.status==='approved'){
+    // Group clients by branch
+    var _disbBrGroups={};
+    for(var i=0;i<d.clients.length;i++){
+      var _dbr=d.clients[i].branch||'Unknown';
+      if(!_disbBrGroups[_dbr]) _disbBrGroups[_dbr]=[];
+      _disbBrGroups[_dbr].push({dc:d.clients[i],idx:i});
+    }
+    var _disbBrKeys=Object.keys(_disbBrGroups);
+    h+='<div class="cd"><div class="cdh"><span class="cdt">Clients in this List ('+d.clients.length+') — '+_disbBrKeys.length+' branch'+(  _disbBrKeys.length>1?'es':'')+'</span></div>';
+    h+='<div class="cdb">';
+    for(var _bri=0;_bri<_disbBrKeys.length;_bri++){
+      var _brName=_disbBrKeys[_bri];
+      var _brClients=_disbBrGroups[_brName];
+      var _brIsN=NORTH.indexOf(_brName)>=0;
+      h+='<div style="background:'+(_brIsN?'rgba(26,82,118,.06)':'rgba(30,132,73,.06)')+';border-radius:8px;padding:10px 12px;margin-bottom:10px;border-left:4px solid '+(_brIsN?'var(--in)':'var(--ok)')+'">';
+      h+='<div style="font-weight:700;font-size:13px;color:'+(_brIsN?'var(--in)':'var(--ok)')+';margin-bottom:8px">'+esc(_brName)+' ('+_brClients.length+' clients)</div>';
+      for(var _bci=0;_bci<_brClients.length;_bci++){
+        var dc=_brClients[_bci].dc,a=findA(dc.appId);
+        // Find client code
+        var _cc=null;
+        for(var _cci=0;_cci<clients.length;_cci++){
+          if(clients[_cci].sourceAppId===dc.appId||(clients[_cci].name===dc.name&&(clients[_cci].branch||'').toLowerCase().trim()===_brName.toLowerCase().trim())){_cc=clients[_cci];break;}
+        }
+        var _code=_cc?_cc.code:'—';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.06)">';
+        h+='<div><div style="display:flex;align-items:center;gap:8px"><span style="font-family:monospace;font-size:12px;font-weight:800;color:var(--r);background:rgba(192,57,43,.08);padding:2px 8px;border-radius:4px">'+esc(_code)+'</span>';
+        h+='<span style="font-weight:700;font-size:14px">'+esc(dc.name)+'</span></div>';
+        h+='<div style="font-size:11px;color:var(--mu);margin-top:2px">NRC: '+esc(dc.nrc||'—')+' &nbsp;📞 '+esc(dc.phone||a&&a.phone||'—')+'</div>';
+        if(dc.collateral||(a&&a.colRows&&a.colRows.length))h+='<div style="font-size:11px;color:var(--wn);margin-top:2px">🔒 '+esc(dc.collateral||(a&&a.colRows?a.colRows.map(function(r){return r.item;}).join(', '):''))+'</div>';
+        h+='</div>';
+        h+='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
+        h+='<div style="font-family:monospace;font-weight:800;font-size:15px;color:var(--ok)">'+zmw(dc.amount)+'</div>';
+        if(a)h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View App</button>';
+        if(canDo('credit_north','credit_south','admin'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove & Delete Loan</button>';
+        h+='</div></div>';
+      }
+      h+='</div>';
+    }
+    h+='</div></div>';
+  } else {
+    // Pending/rejected — flat list
+    h+='<div class="cd"><div class="cdh"><span class="cdt">Clients in this List ('+d.clients.length+')</span></div>';
+    h+='<div class="cdb">';
+    for(var i=0;i<d.clients.length;i++){
+      var dc=d.clients[i],a=findA(dc.appId);
+      var isN=NORTH.indexOf(dc.branch)>=0;
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)">';
+      h+='<div><div style="font-weight:700;font-size:14px">'+esc(dc.name)+'</div>';
+      h+='<div style="font-size:11px;color:var(--mu)">NRC: '+esc(dc.nrc||'—')+'</div>';
+      h+='<div style="font-size:11px;color:var(--mu)">📞 '+esc(dc.phone||a&&a.phone||'—')+'</div>';
+      if(dc.collateral||(a&&a.colRows&&a.colRows.length))h+='<div style="font-size:11px;color:var(--wn)">🔒 '+esc(dc.collateral||(a&&a.colRows?a.colRows.map(function(r){return r.item;}).join(', '):''))+'</div>';
+      h+='<div><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(dc.branch)+'</span></div></div>';
+      h+='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
+      h+='<div style="font-family:monospace;font-weight:800;font-size:15px;color:var(--ok)">'+zmw(dc.amount)+'</div>';
+      if(a)h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View App</button>';
+      if(d.status==='pending'&&canDo('credit_north','credit_south','admin','assistant'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove</button>';
+      h+='</div></div>';
+    }
     h+='</div></div>';
   }
-  h+='</div></div>';
   mc.innerHTML=h;
 }
 function openPayModal(lid){cpid=lid;var l=findL(lid),lc=findC(l.clientId),tp=gTP(lid);document.getElementById('pinfo').innerHTML='<div style="display:flex;gap:14px;flex-wrap:wrap"><div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Client</div><div style="font-weight:600">'+(lc?esc(lc.name):'')+'</div></div><div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Daily</div><div style="font-weight:600;font-family:monospace">'+zmw(l.dailyPayment)+'</div></div><div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Balance</div><div style="font-weight:600;color:var(--r);font-family:monospace">'+zmw(Math.max(0,(l.amountDue||0)-tp))+'</div></div></div>';document.getElementById('pa').value=l.dailyPayment.toFixed(2);document.getElementById('pd').value=td_();document.getElementById('pn').value='';document.getElementById('pmod').classList.add('op');}
