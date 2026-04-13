@@ -3123,15 +3123,50 @@ function removeDisbClient(disbId, appId){
   var d=findD(disbId);if(!d)return;
   var dc=null;for(var i=0;i<d.clients.length;i++){if(d.clients[i].appId===appId){dc=d.clients[i];break;}}
   if(!dc)return;
-  if(!confirm('Remove '+dc.name+' from this disbursement list?\n\nTheir application will remain approved — you can add them to the next list.'))return;
+  var isApproved=d.status==='approved';
+  var msg=isApproved
+    ?'Remove '+dc.name+' from this APPROVED disbursement?\n\nThis will also DELETE their loan and client record created from this disbursement. Their application will be reset to approved.'
+    :'Remove '+dc.name+' from this disbursement list?\n\nTheir application will remain approved — you can add them to the next list.';
+  if(!confirm(msg))return;
   d.clients=d.clients.filter(function(c){return c.appId!==appId;});
+  // If disbursement was already approved, clean up the orphan loan + client
+  if(isApproved){
+    // Find and remove the loan linked to this application
+    var orphanLoan=null;
+    for(var li=0;li<loans.length;li++){
+      if(loans[li].sourceAppId===appId){orphanLoan=loans[li];break;}
+    }
+    if(orphanLoan){
+      var orphanClientId=orphanLoan.clientId;
+      // Delete loan
+      loans=loans.filter(function(x){return x.id!==orphanLoan.id;});
+      payments=payments.filter(function(x){return x.loanId!==orphanLoan.id;});
+      if(_fbReady&&_db){
+        _db.collection('salty').doc('loans').collection('l').doc(orphanLoan.id).delete().catch(function(e){console.warn('Del orphan loan FB:',e);});
+      }
+      // Delete client if it was created from this same application (sourceAppId match)
+      var orphanClient=findC(orphanClientId);
+      if(orphanClient&&orphanClient.sourceAppId===appId){
+        // Check no other loans reference this client
+        var otherLoans=false;
+        for(var ol=0;ol<loans.length;ol++){if(loans[ol].clientId===orphanClientId){otherLoans=true;break;}}
+        if(!otherLoans){
+          clients=clients.filter(function(x){return x.id!==orphanClientId;});
+          if(_fbReady&&_db){
+            _db.collection('salty').doc('clients').collection('c').doc(orphanClientId).delete().catch(function(e){console.warn('Del orphan client FB:',e);});
+          }
+        }
+      }
+      logAct('act','Removed '+dc.name+' from approved disbursement — loan & client deleted');
+    }
+  }
   // Reset application back to approved so it appears for next disbursement
   for(var i=0;i<applications.length;i++){
-    if(applications[i].id===appId){applications[i].status='approved';break;}
+    if(applications[i].id===appId){applications[i].status='approved';_markDirty('applications',appId);break;}
   }
-  _markDirty('disbursements',disbId);_markDirty('applications',appId);logAct('act','Removed '+dc.name+' from disbursement list — returned to approved queue');
+  _markDirty('disbursements',disbId);_markDirty('meta','');logAct('act','Removed '+dc.name+' from disbursement list — returned to approved queue');
   save();
-  toast(dc.name+' removed. They remain approved for next list.');
+  toast(dc.name+' removed.'+(isApproved?' Loan deleted.':' They remain approved for next list.'));
   viewDisb(disbId);
 }
 
@@ -3145,7 +3180,16 @@ function renderClients(mc,filter){
   }
   var h=branchWarn+'<div class="cd"><div class="cdh"><span class="cdt">Clients ('+list.length+(abr!=='ALL'?' in '+abr:'')+')</span><div style="display:flex;gap:6px;flex-wrap:wrap"><input class="si2" placeholder="Search..." oninput="renderClients(document.getElementById(\'mainct\'),this.value.toLowerCase())">'+(canDo('admin','credit_north','credit_south')?'<button class="btn btg bts" onclick="openImpModal()">Import CSV</button>':'')+'</div></div><div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Branch</th><th>Collateral</th><th>Active Loan</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!list.length)h+='<tr><td colspan="7"><div class="es"><div class="ei">&#128101;</div><div class="et">No clients found in '+(abr==='ALL'?'any branch':'the '+abr+' branch')+'</div><div style="font-size:12px;color:var(--mu);margin-top:6px">'+(abr!=='ALL'?'<button class="btn btg bts" onclick="setBranchAll()">Show All Branches</button>':'Click &quot;+ Add Client&quot; or Import CSV to get started')+'</div></div></td></tr>';
-  for(var i=0;i<list.length;i++){var c=list[i],cl=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){cl=loans[j];break;}}var cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';if(cs.status==='cooling')csl='Cooling '+cs.daysLeft+'d';h+='<tr><td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</td><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td>'+(cl?'<span style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(cl.amountGiven)+'</span>':'<span style="color:var(--mu);font-size:11px">None</span>')+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="display:flex;gap:3px"><button class="ab" onclick="viewClient(\''+c.id+'\')">View</button>'+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:var(--ok)" onclick="issueLoanTo(\''+c.id+'\')">Loan</button>':'')+(canDo('admin')?'<button class="ab" style="color:var(--r)" onclick="delClient(\''+c.id+'\')">&#10005;</button>':'')+'</td></tr>';}
+  // Sort clients by code letter then number then name
+  list.sort(function(a,b){
+    var ma=((a.code||'').match(/^([A-Za-z]*)(\d+)$/)),mb=((b.code||'').match(/^([A-Za-z]*)(\d+)$/));
+    var la=ma?ma[1].toUpperCase():'ZZZ',lb=mb?mb[1].toUpperCase():'ZZZ';
+    if(la!==lb)return la<lb?-1:1;
+    var na=ma?parseInt(ma[2]):9999,nb=mb?parseInt(mb[2]):9999;
+    if(na!==nb)return na-nb;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+  for(var i=0;i<list.length;i++){var c=list[i],cl=null;for(var j=0;j<loans.length;j++){if(loans[j].clientId===c.id&&loans[j].status==='Active'){cl=loans[j];break;}}var cs=gCS(c.collateralLockedDate,c.id),isN=NORTH.indexOf(c.branch)>=0,csl=cs.status==='locked'?'Locked':'Available',csc=cs.status==='locked'?'bgr':cs.status==='cooling'?'bgb':'bgg';if(cs.status==='cooling')csl='Cooling '+cs.daysLeft+'d';h+='<tr><td style="font-family:monospace;font-size:10px;color:var(--r)">'+esc(c.code||'')+'</td><td><strong style="cursor:pointer;color:var(--r2)" onclick="viewClient(\''+c.id+'\')">'+esc(c.name)+'</strong></td><td><span class="bg '+(isN?'bgb':'bgg')+'" style="font-size:8px">'+esc(c.branch)+'</span></td><td style="font-size:11px;color:var(--mu);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.colItems||'&#8212;')+'</td><td>'+(cl?'<span style="font-family:monospace;font-size:11px;color:var(--ok)">'+zmw(cl.amountGiven)+'</span>':'<span style="color:var(--mu);font-size:11px">None</span>')+'</td><td><span class="bg '+csc+'" style="font-size:8px">'+csl+'</span></td><td style="display:flex;gap:3px"><button class="ab" onclick="viewClient(\''+c.id+'\')">View</button>'+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:var(--ok)" onclick="issueLoanTo(\''+c.id+'\')">Loan</button>':'')+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:var(--r)" onclick="delClient(\''+c.id+'\')">&#10005;</button>':'')+'</td></tr>';}
   h+='</tbody></table></div></div>';mc.innerHTML=h;
 }
 function viewClient(id){var c=findC(id);if(!c)return;var cl=[],tp=0;for(var i=0;i<loans.length;i++){if(loans[i].clientId===id){cl.push(loans[i]);tp+=gTP(loans[i].id);}}var cs=gCS(c.collateralLockedDate,id),mc=document.getElementById('mainct');var h='<button class="bk" onclick="renderClients(document.getElementById(\'mainct\'),\'\')">&#8592; Back to Clients</button><div style="margin-bottom:12px"><span style="font-family:monospace;font-size:11px;color:var(--r)">'+esc(c.code||'')+'</span><h2 style="font-size:20px;color:var(--r2);font-weight:700;margin-top:3px">'+esc(c.name)+'</h2><div style="font-size:12px;color:var(--mu)">'+esc(c.branch)+' &#183; Registered '+fmtD(c.regDate)+'</div></div>';h+='<div class="fr" style="margin-bottom:12px"><div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Personal Details</span></div><div class="cdb"><div class="rm"><span class="rml">NRC</span><span class="rmv">'+esc(c.nrc||'&#8212;')+'</span></div><div class="rm"><span class="rml">Phone</span><span class="rmv">'+esc(c.phone)+'</span></div><div class="rm"><span class="rml">Occupation</span><span class="rmv">'+esc(c.occupation||'&#8212;')+'</span></div></div></div>';h+='<div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Collateral</span></div><div class="cdb">';if(cs.status==='locked')h+='<div style="background:rgba(192,57,43,.06);border:1px solid rgba(192,57,43,.2);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:700;color:var(--r);font-size:13px">&#128274; Locked — Active Loan</div><div style="font-size:11px;color:var(--mu);margin-top:3px">Day '+cs.elapsed+' since disbursement</div></div>';else if(cs.status==='cooling'){var pct=cs.pct||0;h+='<div style="border:1px solid rgba(26,82,118,.25);border-radius:8px;padding:10px;margin-bottom:8px"><div style="font-weight:700;color:var(--in);margin-bottom:2px">&#9203; Cooling — '+cs.daysLeft+' days remaining</div><div style="font-size:11px;color:var(--mu);margin-bottom:6px">Day '+cs.elapsed+' of '+COOL+' ('+pct+'% complete)</div><div class="pb" style="height:6px"><div class="pf" style="width:'+pct+'%"></div></div><div style="font-size:10px;color:var(--mu);margin-top:4px">Locked since: '+fmtD(c.collateralLockedDate)+'</div></div>';}else h+='<div style="background:rgba(30,132,73,.07);border:1px solid rgba(30,132,73,.25);border-radius:8px;padding:10px;font-weight:600;color:var(--ok);margin-bottom:8px">&#10003; Available — 90-day lock completed</div>';h+='<div class="rm"><span class="rml">Items</span><span class="rmv" style="font-size:11px;max-width:140px;text-align:right">'+esc(c.colItems||'&#8212;')+'</span></div></div></div></div>';if(canDo('admin','credit_north','credit_south'))h+='<div style="margin-bottom:12px"><button class="btn btr" onclick="issueLoanTo(\''+c.id+'\')">+ Issue Loan</button></div>';h+='<div class="cd"><div class="cdh"><span class="cdt">Loan History ('+cl.length+') &#8212; Paid: '+zmw(tp)+'</span></div><div class="tw"><table><thead><tr><th>Amt Given</th><th>Amt Due</th><th>Date</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>';if(!cl.length)h+='<tr><td colspan="7"><div class="es" style="padding:12px"><div class="et">No loans yet</div></div></td></tr>';for(var i=0;i<cl.length;i++){var l=cl[i],ltp=gTP(l.id),bal=Math.max(0,(l.amountDue||0)-ltp);h+='<tr><td>'+zmw(l.amountGiven)+'</td><td>'+zmw(l.amountDue)+'</td><td style="font-size:11px">'+fmtD(l.dateGiven)+'</td><td style="color:var(--ok);font-family:monospace;font-size:11px">'+zmw(ltp)+'</td><td style="color:var(--r);font-family:monospace;font-size:11px">'+zmw(bal)+'</td><td><span class="bg '+(l.status==='Active'?'bgr':l.status==='Completed'?'bgg':'bgx')+'">'+esc(l.status)+'</span></td><td><button class="ab" onclick="viewLoan(\''+l.id+'\')">View</button></td></tr>';}h+='</tbody></table></div></div>';mc.innerHTML=h;}
@@ -3176,6 +3220,18 @@ function renderLoans(mc,filter){
     if(inBranch||isMyLoan)list.push(loans[i]);
   }
   if(filter){var fl=[];for(var i=0;i<list.length;i++){var lc=findC(list[i].clientId);if((lc&&lc.name.toLowerCase().indexOf(filter)>=0)||(list[i].code&&list[i].code.toLowerCase().indexOf(filter)>=0))fl.push(list[i]);}list=fl;}
+  // Sort by series letter then code number then client name
+  list.sort(function(a,b){
+    var sa=(a.series||'').toUpperCase(),sb=(b.series||'').toUpperCase();
+    if(sa!==sb)return sa>sb?1:-1;
+    var maA=(a.code||'').match(/^([A-Za-z]*)(\d+)$/);
+    var maB=(b.code||'').match(/^([A-Za-z]*)(\d+)$/);
+    var na=maA?parseInt(maA[2]):9999;
+    var nb=maB?parseInt(maB[2]):9999;
+    if(na!==nb) return na-nb;
+    var ca=findC(a.clientId),cb2=findC(b.clientId);
+    return (ca?ca.name:'').localeCompare(cb2?cb2.name:'');
+  });
   var today=td_();
   var h='<div class="cd"><div class="cdh"><span class="cdt">Daily Loans ('+list.length+')</span><div style="display:flex;gap:6px;flex-wrap:wrap"><input class="si2" placeholder="Search..." oninput="renderLoans(document.getElementById(\'mainct\'),this.value.toLowerCase())">'+(canDo('admin','credit_north','credit_south')?'<button class="btn btg bts" onclick="openLimpModal()">Upload CSV</button><button class="btn btr bts" onclick="issueLoanTo(null)">+ New Loan</button>':'')+'</div></div><div class="tw"><table><thead><tr><th>Code</th><th>Client</th><th>Series</th><th>Branch</th><th>Given</th><th>Due</th><th>Daily</th><th>Day</th><th>Paid</th><th>Balance</th><th>Advance</th><th>Status</th><th></th></tr></thead><tbody>';
   if(!list.length)h+='<tr><td colspan="11"><div class="es"><div class="ei">&#128176;</div><div class="et">No loans</div></div></td></tr>';
@@ -3193,7 +3249,7 @@ function renderLoans(mc,filter){
     h+='<td style="font-family:monospace;font-size:11px;color:'+(lstats.balance>0?'var(--r)':'var(--ok)')+'">'+zmw(lstats.balance)+'</td>';
     h+='<td style="font-family:monospace;font-size:11px;color:var(--gd)">'+zmw(lstats.advances)+'</td>';
     h+='<td><span class="bg '+(l.status==='Active'?'bgr':l.status==='Completed'?'bgg':'bgx')+'">'+esc(l.status)+'</span></td>';
-    h+='<td style="display:flex;gap:3px"><button class="ab" onclick="viewLoan(\''+l.id+'\')">'+'View</button>'+(l.status==='Active'?'<button class="ab" style="color:var(--ok)" onclick="openPayModal(\''+l.id+'\')">Pay</button>':'')+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:#1a5276" onclick="openEditLoan(\''+l.id+'\')">Edit</button>':'')+(canDo('admin')?'<button class="ab" style="color:var(--r)" onclick="confirmDelLoan(\''+l.id+'\')">&#128465;</button>':'')+'</td></tr>';}
+    h+='<td style="display:flex;gap:3px"><button class="ab" onclick="viewLoan(\''+l.id+'\')">'+'View</button>'+(l.status==='Active'?'<button class="ab" style="color:var(--ok)" onclick="openPayModal(\''+l.id+'\')">Pay</button>':'')+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:#1a5276" onclick="openEditLoan(\''+l.id+'\')">Edit</button>':'')+(canDo('admin','credit_north','credit_south')?'<button class="ab" style="color:var(--r)" onclick="confirmDelLoan(\''+l.id+'\')">&#128465;</button>':'')+'</td></tr>';}
   h+='</tbody></table></div></div>';mc.innerHTML=h;
 }
 function issueLoanTo(cid){var c=cid?findC(cid):null;document.getElementById('lclname').value=c?c.name:'';document.getElementById('lbr').value=c?c.branch:'';document.getElementById('la').value='';document.getElementById('ld').value=td_();document.getElementById('lmod').dataset.cid=cid||'';updateCalc();document.getElementById('lmod').classList.add('op');}
@@ -3242,7 +3298,7 @@ function viewLoan(id){
   h+='<span class="bg '+(l.status==='Active'?'bgr':l.status==='Completed'?'bgg':'bgx')+'" style="font-size:11px">'+esc(l.status)+'</span>';
   if(l.status==='Active')h+='<button class="btn btk bts" onclick="openPayModal(\''+l.id+'\')">Record Payment</button>';
   if(canDo('admin','credit_north','credit_south'))h+='<button class="btn bts" style="background:#1a5276;color:#fff" onclick="openEditLoan(\''+l.id+'\')">&#9998; Edit</button>';
-  if(canDo('admin'))h+='<button class="btn btr bts" onclick="confirmDelLoan(\''+l.id+'\')">&#128465; Delete</button>';
+  if(canDo('admin','credit_north','credit_south'))h+='<button class="btn btr bts" onclick="confirmDelLoan(\''+l.id+'\')">&#128465; Delete</button>';
   h+='</div></div>';
   h+='<div class="fr" style="margin-bottom:12px">';
   h+='<div class="cd" style="margin-bottom:0"><div class="cdh"><span class="cdt">Summary</span></div><div class="cdb">';
@@ -3380,6 +3436,7 @@ function viewDisb(id){
     h+='<div style="font-family:monospace;font-weight:800;font-size:15px;color:var(--ok)">'+zmw(dc.amount)+'</div>';
     if(a)h+='<button class="ab" onclick="viewApp(\''+a.id+'\',\'viewDisb(\\\''+d.id+'\\\')\')">View App</button>';
     if(d.status==='pending'&&canDo('credit_north','credit_south','admin','assistant'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove</button>';
+    if(d.status==='approved'&&canDo('credit_north','credit_south','admin'))h+='<button class="ab" style="color:var(--r);border-color:var(--r);margin-top:2px;" onclick="removeDisbClient(\''+d.id+'\',\''+dc.appId+'\')">✕ Remove & Delete Loan</button>';
     h+='</div></div>';
   }
   h+='</div></div>';
@@ -3511,17 +3568,19 @@ function buildDPTable(branch) {
     return;
   }
 
-  // Group by series + disbursement date
+  // Group by series letter only (not dateGiven) so reprocessed loans stay together
   var groups = {};
   for(var i=0;i<allRows.length;i++){
     var r = allRows[i];
-    var ser = r.loan.series || 'Unknown Series';
-    var dg  = r.loan.dateGiven || '';
-    var key = ser + '||' + dg;
-    if(!groups[key]) groups[key] = {series:ser, dateGiven:dg, rows:[]};
-    groups[key].rows.push(r);
+    var ser = r.loan.series || 'Unknown';
+    if(!groups[ser]) groups[ser] = {series:ser, dateGiven:r.loan.dateGiven||'', rows:[]};
+    groups[ser].rows.push(r);
+    // Keep the earliest dateGiven for display
+    if(r.loan.dateGiven && (!groups[ser].dateGiven || r.loan.dateGiven < groups[ser].dateGiven))
+      groups[ser].dateGiven = r.loan.dateGiven;
   }
   var groupKeys = Object.keys(groups).sort(function(a,b){
+    // Sort groups by dateGiven descending (newest first)
     return (groups[b].dateGiven||'') > (groups[a].dateGiven||'') ? 1 : -1;
   });
 
@@ -3540,17 +3599,34 @@ function buildDPTable(branch) {
   for(var gi=0;gi<groupKeys.length;gi++){
     var grp = groups[groupKeys[gi]];
     var gRows = grp.rows;
+    // Sort by client code: letter first, then number, then name as fallback
+    gRows.sort(function(a,b){
+      var ca=a.client.code||'', cb=b.client.code||'';
+      // Extract letter prefix and number suffix
+      var laMatch=ca.match(/^([A-Za-z]*)(\d+)$/);
+      var lbMatch=cb.match(/^([A-Za-z]*)(\d+)$/);
+      var letterA=laMatch?laMatch[1].toUpperCase():'ZZZ';
+      var letterB=lbMatch?lbMatch[1].toUpperCase():'ZZZ';
+      var numA=laMatch?parseInt(laMatch[2]):9999;
+      var numB=lbMatch?parseInt(lbMatch[2]):9999;
+      // Sort by letter first
+      if(letterA!==letterB) return letterA<letterB?-1:1;
+      // Then by number
+      if(numA!==numB) return numA-numB;
+      // Fallback to name
+      return (a.client.name||'').localeCompare(b.client.name||'');
+    });
     var gPaid = gRows.filter(function(r){return r.alreadyPaid>0;}).length;
     var gUnpaid = gRows.filter(function(r){return r.alreadyPaid===0 && r.dayIdx>=0;});
     var gTotal = 0; gRows.forEach(function(r){gTotal+=r.alreadyPaid;});
-    var serLetter = grp.series.replace(/\s*(series|Series)\s*/i,'').trim();
-    var grpId = 'grp-'+branch.replace(/\s+/g,'')+'-'+gi;
+    var serLetter = (grp.series||'?').replace(/\s*(series|Series)\s*/i,'').trim().toUpperCase();
+    var grpId = 'grp-'+branch.replace(/\s+/g,'')+'-'+serLetter;
 
     h += '<div class="cd" style="margin-bottom:12px;border-left:4px solid var(--r2)">';
     h += '<div class="cdh" style="background:rgba(139,90,43,.06)">';
     h += '<span class="cdt" style="display:flex;align-items:center;gap:10px;">';
     h += '<span style="background:var(--r2);color:#fff;border-radius:6px;padding:2px 10px;font-size:14px;font-weight:800;letter-spacing:1px">'+esc(serLetter)+'</span>';
-    h += '<span style="font-weight:700;">'+esc(grp.series)+'</span>';
+    h += '<span style="font-weight:700;">'+esc(serLetter)+' Series</span>';
     if(grp.dateGiven) h += '<span style="font-size:11px;font-weight:400;color:var(--mu)">Disbursed '+fmtD(grp.dateGiven)+'</span>';
     h += '<span style="font-size:11px;font-weight:400;color:var(--mu)">'+gRows.length+' clients &nbsp;&#183;&nbsp; '+gPaid+' paid</span>';
     h += '</span>';
